@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $neg = $db->prepare('SELECT * FROM negocios WHERE id=?'); $neg->execute([$nid]); $neg = $neg->fetch();
 $hoy = date('Y-m-d');
-$k = $db->prepare('SELECT COALESCE(SUM(total),0) t, COALESCE(SUM(cantidad),0) c FROM ventas WHERE negocio_id=? AND date(fecha)=?');
-$k->execute([$nid, $hoy]); $k = $k->fetch();
+$k = $db->prepare('SELECT COALESCE(SUM(total),0) t, COALESCE(SUM(cantidad),0) c FROM ventas WHERE negocio_id=? AND fecha>=? AND fecha<?');
+$k->execute([$nid, $hoy . ' 00:00:00', date('Y-m-d 00:00:00', strtotime('+1 day'))]); $k = $k->fetch();
 $al = $db->prepare('SELECT COUNT(*) FROM productos WHERE negocio_id=? AND stock<minimo'); $al->execute([$nid]); $al = $al->fetchColumn();
 $rec = $db->prepare('SELECT v.*, p.nombre producto FROM ventas v JOIN productos p ON p.id=v.producto_id WHERE v.negocio_id=? ORDER BY v.fecha DESC LIMIT 8');
 $rec->execute([$nid]); $rec = $rec->fetchAll();

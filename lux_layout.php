@@ -10,9 +10,12 @@ function lux_nav($rol) {
     if ($rol === 'cliente') return [
         'lux_mis_turnos.php' => 'Mis compras y turnos', 'lux_explorar.php' => 'Explorar negocios',
         'lux_perfil.php' => 'Mi perfil'];
-    return ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario', 'lux_perfil.php' => 'Mi perfil'];
+    $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
+    if ($rol === 'admin') $n['lux_usuarios.php'] = 'Empleados';
+    return $n + ['lux_perfil.php' => 'Mi perfil'];
 }
 function lux_header($titulo, $sub) {
+    global $db;
     $u = lux_user();
     $labels = ['superadmin' => 'Super Admin', 'admin' => 'Administrador', 'empleado' => 'Empleado', 'cliente' => 'Cliente'];
     $actual = basename($_SERVER['SCRIPT_NAME']);

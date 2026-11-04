@@ -3,17 +3,17 @@ require __DIR__ . '/lux_layout.php';
 lux_require(['superadmin']);
 $q = function ($sql, $p = []) use ($db) { $s = $db->prepare($sql); $s->execute($p); return $s->fetchColumn(); };
 $hoy = date('Y-m-d'); $ayer = date('Y-m-d', strtotime('-1 day'));
-$vHoy = $q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE date(fecha)=?', [$hoy]);
-$vAyer = $q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE date(fecha)=?', [$ayer]);
+$vHoy = $q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE fecha>=? AND fecha<?', [$hoy . ' 00:00:00', date('Y-m-d 00:00:00', strtotime('+1 day'))]);
+$vAyer = $q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE fecha>=? AND fecha<?', [$ayer . ' 00:00:00', $hoy . ' 00:00:00']);
 $delta = $vAyer > 0 ? round(($vHoy - $vAyer) * 100 / $vAyer, 1) : 0;
-$turnos = $q('SELECT COUNT(*) FROM turnos WHERE date(fecha)=?', [$hoy]);
+$turnos = $q('SELECT COUNT(*) FROM turnos WHERE fecha>=? AND fecha<?', [$hoy . ' 00:00:00', date('Y-m-d 00:00:00', strtotime('+1 day'))]);
 $activos = $q("SELECT COUNT(*) FROM usuarios WHERE estado='Activo'");
 $alertas = $q('SELECT COUNT(*) FROM productos WHERE stock<minimo');
 $negocios = lux_negocios_stats($db);
 $dias = [];
 for ($i = 6; $i >= 0; $i--) {
     $f = date('Y-m-d', strtotime("-$i days"));
-    $dias[] = [strftime_es($f), (float)$q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE date(fecha)=?', [$f])];
+    $dias[] = [strftime_es($f), (float)$q('SELECT COALESCE(SUM(total),0) FROM ventas WHERE fecha>=? AND fecha<?', [$f . ' 00:00:00', date('Y-m-d 00:00:00', strtotime($f . ' +1 day'))])];
 }
 function strftime_es($f) { return ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][date('w', strtotime($f))]; }
 $max = max(1, max(array_column($dias, 1)));

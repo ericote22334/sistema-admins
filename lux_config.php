@@ -1,14 +1,33 @@
 <?php
-// Grupo Lux — configuración, base de datos (SQLite) y helpers
+// Grupo Lux — configuración, base de datos MySQL y helpers
 session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-$dir = __DIR__ . '/data';
-if (!is_dir($dir)) mkdir($dir, 0755, true);
-$nuevo = !file_exists("$dir/lux.sqlite");
-$db = new PDO("sqlite:$dir/lux.sqlite");
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-if ($nuevo) lux_instalar($db);
+$host = getenv('LUX_DB_HOST') ?: '127.0.0.1';
+$port = getenv('LUX_DB_PORT') ?: '3306';
+$name = getenv('LUX_DB_NAME') ?: 'grupolux';
+$user = getenv('LUX_DB_USER') ?: 'root';
+$pass = getenv('LUX_DB_PASS');
+if ($pass === false) $pass = '';
+if (!preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
+    throw new RuntimeException('LUX_DB_NAME solo puede contener letras, números y guion bajo.');
+}
+$pdoOptions = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES => false,
+];
+$servidor = new PDO("mysql:host=$host;port=$port;charset=utf8mb4", $user, $pass, $pdoOptions);
+$existeBase = $servidor->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name=?');
+$existeBase->execute([$name]);
+if (!(int)$existeBase->fetchColumn()) {
+    $servidor->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+$db = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $pdoOptions);
+$version = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='lux_schema_version'");
+$version->execute();
+$tieneVersion = (bool)$version->fetchColumn();
+$versionInstalada = $tieneVersion ? (int)$db->query('SELECT COALESCE(MAX(version),0) FROM lux_schema_version')->fetchColumn() : 0;
+if ($versionInstalada < 1) lux_instalar($db);
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money($n) { return '$' . number_format((float)$n, 0, ',', '.'); }
@@ -36,61 +55,43 @@ function csrf_check() {
 }
 function lux_negocios_stats($db) {
     $st = $db->prepare("SELECT n.*,
-      (SELECT COALESCE(SUM(total),0) FROM ventas v WHERE v.negocio_id=n.id AND date(v.fecha)=?) ventas,
+      (SELECT COALESCE(SUM(total),0) FROM ventas v WHERE v.negocio_id=n.id AND v.fecha>=? AND v.fecha<?) ventas,
       (SELECT COUNT(*) FROM productos p WHERE p.negocio_id=n.id AND p.stock<p.minimo) alertas,
       (SELECT COUNT(*) FROM productos p WHERE p.negocio_id=n.id) items
       FROM negocios n ORDER BY n.id");
-    $st->execute([date('Y-m-d')]);
+    $st->execute([date('Y-m-d 00:00:00'), date('Y-m-d 00:00:00', strtotime('+1 day'))]);
     return $st->fetchAll();
 }
 
 function lux_instalar($db) {
-    $db->exec("
-    CREATE TABLE negocios(id INTEGER PRIMARY KEY, nombre TEXT, tipo TEXT, color TEXT, descripcion TEXT);
-    CREATE TABLE usuarios(id INTEGER PRIMARY KEY, nombre TEXT, email TEXT UNIQUE, pass TEXT,
-      rol TEXT CHECK(rol IN ('superadmin','admin','empleado','cliente')), negocio_id INTEGER, estado TEXT DEFAULT 'Activo');
-    CREATE TABLE productos(id INTEGER PRIMARY KEY, negocio_id INTEGER, nombre TEXT, precio REAL, stock INTEGER, minimo INTEGER);
-    CREATE TABLE ventas(id INTEGER PRIMARY KEY, negocio_id INTEGER, producto_id INTEGER, usuario_id INTEGER,
-      cliente_id INTEGER, cantidad INTEGER, total REAL, fecha TEXT);
-    CREATE TABLE turnos(id INTEGER PRIMARY KEY, cliente_id INTEGER, negocio_id INTEGER, profesional TEXT, fecha TEXT, estado TEXT DEFAULT 'Pendiente');");
-    $neg = [
-      ['Papelería Lux','Librería y papelería','blue','Útiles escolares, materiales de oficina y artículos de librería para toda la familia.'],
-      ['Farmacia Lux','Farmacia','green','Medicamentos, perfumería y productos de cuidado personal, con retiro en el local.'],
-      ['ElectroLux','Electrodomésticos y tecnología','violet','Electrodomésticos y tecnología para el hogar, con asesoramiento y garantía.'],
-      ['Consultorio Lux Salud','Consultorio médico','teal','Turnos con clínica general y especialistas, con recordatorio automático.'],
-    ];
-    foreach ($neg as $n) $db->prepare('INSERT INTO negocios(nombre,tipo,color,descripcion) VALUES(?,?,?,?)')->execute($n);
-    $p = password_hash('lux2026', PASSWORD_DEFAULT);
-    $us = [
-      ['Admin General','admin@grupolux.com','superadmin',null,'Activo'],
-      ['Diego Ferro','diego.ferro@grupolux.com','empleado',2,'Activo'],
-      ['Marina Ríos','marina.rios@grupolux.com','admin',1,'Activo'],
-      ['Sol Aguirre','sol.aguirre@grupolux.com','empleado',3,'Activo'],
-      ['Dra. Paula Nieva','paula.nieva@grupolux.com','admin',4,'Activo'],
-      ['Bruno Castex','bruno.castex@mail.com','cliente',2,'Inactivo'],
-      ['Ivana Roldán','ivana.roldan@mail.com','cliente',3,'Activo'],
-    ];
-    foreach ($us as $u) $db->prepare('INSERT INTO usuarios(nombre,email,pass,rol,negocio_id,estado) VALUES(?,?,?,?,?,?)')
-        ->execute([$u[0], $u[1], $p, $u[2], $u[3], $u[4]]);
-    $prod = [
-      [1,'Set de útiles escolares',8200,40,10],[1,'Cuaderno A4 rayado',2500,120,30],[1,'Resma A4 500 hojas',9800,8,10],
-      [2,'Ibuprofeno 400mg',1700,14,20],[2,'Alcohol en gel 500ml',2100,56,15],[2,'Termómetro digital',8900,6,10],
-      [2,'Vitamina C x30',3200,40,15],[2,'Protector solar FP50',7400,3,12],
-      [3,'Auriculares inalámbricos',34500,12,5],[3,'Licuadora 600W',48000,7,3],
-      [4,'Consulta clínica',12000,999,0],
-    ];
-    foreach ($prod as $r) $db->prepare('INSERT INTO productos(negocio_id,nombre,precio,stock,minimo) VALUES(?,?,?,?,?)')->execute($r);
-    // ventas de los últimos 7 días (datos demo)
-    $todos = $db->query('SELECT * FROM productos')->fetchAll();
-    for ($d = 0; $d < 7; $d++) foreach ($todos as $i => $pr) {
-        $c = (($d * 3 + $i * 2) % 4) + 1;
-        $f = date('Y-m-d H:i:s', strtotime("-$d days -" . ($i * 17) . ' minutes'));
-        $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cliente_id,cantidad,total,fecha) VALUES(?,?,?,?,?,?,?)')
-           ->execute([$pr['negocio_id'], $pr['id'], 2, ($i % 4 == 0 ? 7 : null), $c, $c * $pr['precio'], $f]);
+    $tablas = $db->query("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE()")->fetchAll(PDO::FETCH_COLUMN);
+    if ($tablas) {
+        throw new RuntimeException('La base MySQL ya contiene tablas pero no tiene lux_schema_version. Elegí una base vacía o importá data/grupo_lux.sql manualmente.');
     }
-    $t = [[7,4,'Dra. Paula Nieva',date('Y-m-d 10:30', strtotime('+3 days'))],
-          [6,4,'Dra. Paula Nieva',date('Y-m-d 09:00')],[6,4,'Dra. Paula Nieva',date('Y-m-d 11:00')]];
-    foreach ($t as $r) $db->prepare('INSERT INTO turnos(cliente_id,negocio_id,profesional,fecha) VALUES(?,?,?,?)')->execute($r);
+    $dump = file_get_contents(__DIR__ . '/data/grupo_lux.sql');
+    if ($dump === false) throw new RuntimeException('No se pudo leer data/grupo_lux.sql.');
+    $statements = preg_split('/;\s*(?:\r?\n|$)/', $dump, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$statements) throw new RuntimeException('El archivo data/grupo_lux.sql está vacío o no es válido.');
+    $insertsStarted = false;
+    try {
+        foreach ($statements as $statement) {
+            $statement = trim($statement);
+            if ($statement === '' || strpos($statement, '--') === 0) continue;
+            if (!$insertsStarted && preg_match('/^INSERT\s+/i', $statement)) {
+                $db->beginTransaction();
+                $insertsStarted = true;
+            }
+            $db->exec($statement);
+        }
+        if ($db->inTransaction()) {
+            $db->commit();
+        } else {
+            throw new RuntimeException('El archivo SQL no contiene datos para importar.');
+        }
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
 }
 
 // Negocio sobre el que se trabaja: el propio (empleado/admin) o el elegido por el Super Admin
