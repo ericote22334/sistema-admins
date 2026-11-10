@@ -347,3 +347,8 @@ a.btn-small{display:inline-block;text-decoration:none;}
 .venta-resumen{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--bg);border:1px dashed var(--border-strong);border-radius:12px;padding:12px 16px;font-size:13.5px;}
 .venta-resumen b{font-size:18px;}
 .venta-aviso{background:#FBEAE6;border:1px solid #E7B9AE;color:#8A3A28;border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:14px;}
+
+/* Historial de ventas */
+.hist-filtros label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-muted);}
+.hist-filtros input[type=date]{width:auto;padding:9px 10px;}
+.hist-pag{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:18px;font-size:13px;color:var(--text-muted);}

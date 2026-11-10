@@ -30,7 +30,7 @@ lux_header('Mi negocio', ($neg['nombre'] ?? '—') . ' — resumen de hoy'); ?>
 <div class="delta <?= $A['sin_stock'] ? 'down' : 'up' ?>"><?= $A['sin_stock'] ? $A['sin_stock'] . ' sin stock' : 'Ninguno sin stock' ?> · <a href="lux_inventario.php">Ver inventario</a></div></div></div></div>
 <?php endif; ?>
 <?php lux_render_alertas($A); ?>
-<div class="section-title"><h2>Ventas recientes</h2></div>
+<div class="section-title"><h2>Ventas recientes</h2><a class="btn-link" href="lux_historial_ventas.php">Ver historial completo →</a></div>
 <table><thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Total</th></tr></thead><tbody>
 <?php foreach ($rec as $v): ?><tr><td><?= h(date('d/m H:i', strtotime($v['fecha']))) ?></td><td><?= h($v['producto']) ?></td><td><?= $v['cantidad'] ?></td><td><?= money($v['total']) ?></td></tr><?php endforeach; ?>
 </tbody></table>
