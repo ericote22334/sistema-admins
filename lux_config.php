@@ -28,6 +28,12 @@ $version->execute();
 $tieneVersion = (bool)$version->fetchColumn();
 $versionInstalada = $tieneVersion ? (int)$db->query('SELECT COALESCE(MAX(version),0) FROM lux_schema_version')->fetchColumn() : 0;
 if ($versionInstalada < 1) lux_instalar($db);
+else {
+    if ($versionInstalada < 2) lux_migrar_2($db);
+    if ($versionInstalada < 3) lux_migrar_3($db);
+    if ($versionInstalada < 4) lux_migrar_4($db);
+    if ($versionInstalada < 5) lux_migrar_5($db);
+}
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money($n) { return '$' . number_format((float)$n, 0, ',', '.'); }
@@ -61,6 +67,98 @@ function lux_negocios_stats($db) {
       FROM negocios n ORDER BY n.id");
     $st->execute([date('Y-m-d 00:00:00'), date('Y-m-d 00:00:00', strtotime('+1 day'))]);
     return $st->fetchAll();
+}
+
+// Migración v2: tabla de pedidos (alerta de pedidos pendientes) para bases que ya estaban instaladas
+function lux_migrar_2($db) {
+    $db->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS pedidos (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, negocio_id INT UNSIGNED NOT NULL, cliente_id INT UNSIGNED NULL, producto_id INT UNSIGNED NOT NULL, cantidad INT UNSIGNED NOT NULL, estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente', fecha DATETIME NOT NULL, CONSTRAINT fk_pedidos_negocio FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE RESTRICT, CONSTRAINT fk_pedidos_cliente FOREIGN KEY (cliente_id) REFERENCES usuarios(id) ON DELETE SET NULL, CONSTRAINT fk_pedidos_producto FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT, INDEX idx_pedidos_negocio_estado (negocio_id,estado)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL
+    );
+    if (!(int)$db->query('SELECT COUNT(*) FROM pedidos')->fetchColumn()) {
+        $db->beginTransaction();
+        $demo = [
+            [1, 1, 7, 1, 2, 'Pendiente', '2026-09-30 09:01:00'],
+            [2, 2, 7, 5, 3, 'Pendiente', '2026-09-30 09:02:00'],
+            [3, 2, 6, 7, 1, 'Pendiente', '2026-09-30 09:03:00'],
+            [4, 3, 7, 9, 1, 'Pendiente', '2026-09-30 09:04:00'],
+            [5, 2, 7, 4, 2, 'Entregado', '2026-09-30 09:05:00'],
+            [6, 2, 7, 7, 2, 'En camino', '2026-09-29 18:20:00'],
+            [7, 2, 6, 5, 1, 'En preparación', '2026-09-29 16:45:00'],
+            [8, 1, 7, 2, 5, 'En camino', '2026-09-28 12:10:00'],
+        ];
+        $ins = $db->prepare('INSERT INTO pedidos(id,negocio_id,cliente_id,producto_id,cantidad,estado,fecha) VALUES(?,?,?,?,?,?,?)');
+        foreach ($demo as $d) {
+            // solo carga el pedido de ejemplo si el producto y el cliente existen en esta base
+            $ok = $db->prepare('SELECT (SELECT COUNT(*) FROM productos WHERE id=? AND negocio_id=?) + (SELECT COUNT(*) FROM usuarios WHERE id=?)');
+            $ok->execute([$d[3], $d[1], $d[2]]);
+            if ((int)$ok->fetchColumn() === 2) $ins->execute($d);
+        }
+        $db->commit();
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (2)');
+}
+
+// Migración v3: estados nuevos de pedidos (Entregado) y pedidos de ejemplo 6 a 8, para bases ya instaladas
+function lux_migrar_3($db) {
+    $db->exec("UPDATE pedidos SET estado='Entregado' WHERE estado='Preparado'");
+    $demo = [
+        [6, 2, 7, 7, 2, 'En camino', '2026-09-29 18:20:00'],
+        [7, 2, 6, 5, 1, 'En preparación', '2026-09-29 16:45:00'],
+        [8, 1, 7, 2, 5, 'En camino', '2026-09-28 12:10:00'],
+    ];
+    $ins = $db->prepare('INSERT IGNORE INTO pedidos(id,negocio_id,cliente_id,producto_id,cantidad,estado,fecha) VALUES(?,?,?,?,?,?,?)');
+    $ok = $db->prepare('SELECT (SELECT COUNT(*) FROM productos WHERE id=? AND negocio_id=?) + (SELECT COUNT(*) FROM usuarios WHERE id=?)');
+    foreach ($demo as $d) {
+        $ok->execute([$d[3], $d[1], $d[2]]);
+        if ((int)$ok->fetchColumn() === 2) $ins->execute($d); // si el id ya existe, se omite
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (3)');
+}
+
+// Puestos de cada negocio. Cada puesto da un rol de acceso: 'admin' (gestiona el negocio) o 'empleado'.
+function lux_puestos($negocioId) {
+    $a = 'admin'; $e = 'empleado';
+    $mapa = [
+        1 => ['Dueño / Administrador' => $a, 'Encargado del local' => $e, 'Vendedor / Atención al cliente' => $e, 'Cajero' => $e, 'Repositor de mercadería' => $e, 'Encargado de stock' => $e],
+        2 => ['Farmacéutico' => $e, 'Auxiliar de farmacia' => $e, 'Cajero' => $e, 'Vendedor' => $e, 'Encargado de stock' => $e, 'Administrador' => $a],
+        3 => ['Dueño / Administrador' => $a, 'Gerente' => $e, 'Vendedor' => $e, 'Cajero' => $e, 'Técnico de reparación' => $e, 'Repartidor' => $e, 'Encargado de depósito' => $e],
+        4 => ['Médico' => $e, 'Recepcionista' => $e, 'Secretario/a administrativo/a' => $e, 'Enfermero/a' => $e, 'Personal de limpieza' => $e, 'Administrador' => $a],
+    ];
+    return $mapa[(int)$negocioId] ?? [];
+}
+
+// Migración v4: columna puesto en usuarios (cada negocio tiene sus propios puestos)
+function lux_migrar_4($db) {
+    $existe = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='usuarios' AND column_name='puesto'")->fetchColumn();
+    if (!$existe) $db->exec('ALTER TABLE usuarios ADD COLUMN puesto VARCHAR(60) NULL AFTER estado');
+    $up = $db->prepare('UPDATE usuarios SET puesto=? WHERE email=? AND puesto IS NULL');
+    foreach (['diego.ferro@grupolux.com' => 'Auxiliar de farmacia', 'marina.rios@grupolux.com' => 'Dueño / Administrador',
+              'sol.aguirre@grupolux.com' => 'Vendedor', 'paula.nieva@grupolux.com' => 'Administrador'] as $email => $puesto) $up->execute([$puesto, $email]);
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (4)');
+}
+
+// Puestos que registran ventas en cada negocio (el administrador y el Super Admin siempre pueden)
+function lux_puede_vender($u) {
+    if (in_array($u['rol'] ?? '', ['superadmin', 'admin'], true)) return true;
+    $p = $u['puesto'] ?? '';
+    if ($p === '') return true; // usuarios anteriores a los puestos, todavía sin puesto asignado
+    $venden = [
+        1 => ['Encargado del local', 'Vendedor / Atención al cliente', 'Cajero'],
+        2 => ['Farmacéutico', 'Auxiliar de farmacia', 'Cajero', 'Vendedor'],
+        3 => ['Gerente', 'Vendedor', 'Cajero'],
+        4 => ['Médico', 'Recepcionista', 'Secretario/a administrativo/a'],
+    ];
+    return in_array($p, $venden[(int)($u['negocio_id'] ?? 0)] ?? [], true);
+}
+
+// Migración v5: datos del registro de ventas (medio de pago, cliente escrito a mano, detalle según el negocio)
+function lux_migrar_5($db) {
+    foreach (['medio_pago' => 'VARCHAR(30) NULL', 'cliente_nombre' => 'VARCHAR(120) NULL', 'detalle' => 'VARCHAR(255) NULL'] as $col => $def) {
+        $existe = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='ventas' AND column_name='$col'")->fetchColumn();
+        if (!$existe) $db->exec("ALTER TABLE ventas ADD COLUMN $col $def NULL");
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (5)');
 }
 
 function lux_instalar($db) {

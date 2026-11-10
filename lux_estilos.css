@@ -274,3 +274,76 @@ a{color:inherit;text-decoration:none;}
 .btn-link{background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:0;}
 .btn-link:hover{color:var(--accent);}
 .wrap-form{flex-wrap:wrap;}
+
+/* Alertas del negocio */
+.alert-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:32px;box-shadow:0 1px 2px rgba(36,31,42,.04),0 10px 28px rgba(36,31,42,.06);}
+.alert-panel .section-title{margin-bottom:14px;}
+.alert-panel .section-title h2{font-size:17px;}
+.alert-sub{font-size:12.5px;color:var(--text-muted);}
+.alert-item{display:flex;align-items:center;gap:14px;background:var(--bg);border:1px solid var(--border);border-left-width:4px;border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:transform .15s ease,box-shadow .15s ease;}
+.alert-item:last-child{margin-bottom:0;}
+.alert-item:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(36,31,42,.09);}
+.alert-item.rojo{border-left-color:#C2384E;}
+.alert-item.amarillo{border-left-color:#E0A526;}
+.alert-item.caja{border-left-color:#B07A4F;}
+.alert-item.verde{border-left-color:var(--green);}
+.alert-dot{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(36,31,42,.25);}
+.alert-dot.rojo{background:radial-gradient(circle at 30% 28%,#FF9FAE,#D43D55 55%,#8E1F33);}
+.alert-dot.amarillo{background:radial-gradient(circle at 30% 28%,#FFE9A6,#E8B12C 55%,#A8760B);}
+.alert-dot.verde{background:radial-gradient(circle at 30% 28%,#A9E2B7,#3F7D4F 60%,#265536);}
+.alert-dot.caja{width:auto;height:auto;border-radius:0;background:none;box-shadow:none;font-size:22px;}
+.alert-txt{flex:1;display:flex;flex-direction:column;gap:3px;}
+.alert-txt b{font-size:14.5px;font-weight:600;}
+.alert-txt span{font-size:12.5px;color:var(--text-muted);}
+.alert-link{font-size:12.5px;font-weight:600;color:var(--accent);white-space:nowrap;}
+.alert-link:hover{text-decoration:underline;}
+.kpi-alert{display:flex;align-items:center;gap:16px;}
+.kpi-ico{flex:0 0 auto;width:52px;height:52px;border-radius:14px;background:#FBEADF;display:flex;align-items:center;justify-content:center;font-size:26px;}
+
+/* Pedidos */
+.pedidos-filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.pedidos-filtros input,.pedidos-filtros select{background:var(--surface);border:1px solid var(--border-strong);color:var(--text);padding:11px 14px;border-radius:10px;font-size:13.5px;font-family:'Inter',sans-serif;}
+.pedidos-filtros input{width:280px;max-width:100%;}
+.pedidos-tabla{border-radius:14px;overflow:hidden;border:1px solid var(--border);background:var(--surface);overflow-x:auto;box-shadow:0 1px 2px rgba(36,31,42,.04),0 10px 28px rgba(36,31,42,.06);}
+.pedidos-tabla table{border:none;min-width:720px;}
+.pedidos-tabla td b{font-weight:700;}
+select.est{border:1px solid;background:var(--surface);padding:7px 10px;border-radius:8px;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;}
+select.est.pendiente{color:#9A6A07;border-color:#E0A526;background:#FFF8E6;}
+select.est.preparacion{color:var(--blue);border-color:var(--blue);background:#EEF3F9;}
+select.est.camino{color:var(--violet);border-color:var(--violet);background:#F1EEF8;}
+select.est.entregado{color:var(--green);border-color:var(--green);background:#EDF6EF;}
+.btn-detalle{display:inline-block;border:1px solid var(--border-strong);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--accent);background:var(--surface);}
+.btn-detalle:hover{background:var(--accent-soft);}
+.pedido-detalle{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:14px;padding:18px 22px;margin-bottom:22px;box-shadow:0 1px 2px rgba(36,31,42,.04),0 10px 28px rgba(36,31,42,.06);}
+.pedido-detalle .cab{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.pedido-detalle .cab h2{margin:0;font-size:17px;font-family:'Inter',sans-serif;}
+.pedido-detalle dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px 24px;margin:0;}
+.pedido-detalle dt{font-size:11.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;}
+.pedido-detalle dd{margin:0;font-size:14px;font-weight:500;}
+
+/* Inventario: editar / eliminar */
+.acciones{display:flex;gap:8px;align-items:center;}
+.btn-edit,.btn-del{border:1px solid var(--border-strong);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;background:var(--surface);cursor:pointer;font-family:'Inter',sans-serif;display:inline-block;line-height:1.2;}
+.btn-edit{color:var(--accent);}
+.btn-edit:hover{background:var(--accent-soft);}
+.btn-del{color:#A6402A;padding:7px 10px;}
+.btn-del:hover{background:#FBEAE6;border-color:#A6402A;}
+.edit-card .quick-form{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+.edit-card .field{margin-bottom:0;}
+
+/* Cambio de rol */
+.rol-select{border:1px solid var(--border-strong);background:var(--surface);color:var(--text);padding:6px 8px;border-radius:8px;font-size:12.5px;font-family:'Inter',sans-serif;cursor:pointer;}
+.rol-select:hover{border-color:var(--accent);}
+.row-actions{align-items:center;}
+
+/* Registrar venta */
+a.btn-small{display:inline-block;text-decoration:none;}
+.venta-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:14px;padding:20px 22px;margin-bottom:28px;box-shadow:0 1px 2px rgba(36,31,42,.04),0 10px 28px rgba(36,31,42,.06);}
+.venta-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 18px;align-items:end;}
+.venta-form .field{margin:0;}
+.venta-form .field.ancho{grid-column:1/-1;}
+.venta-form input,.venta-form select{width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border-strong);color:var(--text);padding:11px 14px;border-radius:10px;font-size:13.5px;font-family:'Inter',sans-serif;}
+.venta-form label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;}
+.venta-resumen{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--bg);border:1px dashed var(--border-strong);border-radius:12px;padding:12px 16px;font-size:13.5px;}
+.venta-resumen b{font-size:18px;}
+.venta-aviso{background:#FBEAE6;border:1px solid #E7B9AE;color:#8A3A28;border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:14px;}

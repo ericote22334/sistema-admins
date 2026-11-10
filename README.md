@@ -36,4 +36,11 @@ La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves
 | lux_inventario.php | Empleado/Admin: buscar, alta de productos y reposición |
 | lux_mis_turnos.php | Cliente: compras, reservar y cancelar turnos |
 | lux_explorar.php | Cliente: catálogo de negocios |
+| lux_pedidos.php | Empleado/Admin (comercios): buscar pedidos, filtrar por estado, cambiar estado y ver detalle |
 | lux_perfil.php | Todos: editar nombre y cambiar contraseña |
+
+## Alertas (según el sistema)
+En "Mi negocio" (`lux_ventas.php`) cada negocio ve sus alertas:
+- Papelería, Farmacia y ElectroLux: productos a reponer (sin stock en rojo, stock bajo con las unidades que quedan) y pedidos pendientes (tabla `pedidos`, con enlace a la pantalla de Pedidos).
+- Consultorio: turnos sin atender, turnos de hoy y turnos pendientes.
+La tabla `pedidos` se crea sola en bases ya instaladas (migración a versión 2).
