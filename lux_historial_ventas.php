@@ -3,13 +3,13 @@ require __DIR__ . '/lux_layout.php';
 $u = lux_require(['superadmin', 'admin', 'empleado']);
 $nid = lux_negocio_id($u);
 if (!$nid) lux_redirect('lux_negocios.php');
-$clinica = ($nid == 4);
+// El historial de ventas con filtro de búsqueda existe solo en el sistema de la Papelería (negocio 1)
+if ($nid !== 1) lux_redirect('lux_ventas.php');
 
 $neg = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $neg->execute([$nid]); $neg = $neg->fetchColumn();
 
-// Medios de pago posibles (mismos que en lux_registrar_venta.php)
+// Medios de pago de la papelería (mismos que en lux_registrar_venta.php)
 $pagos = ['Efectivo', 'Tarjeta de débito', 'Tarjeta de crédito', 'Transferencia'];
-if ($nid == 2 || $nid == 4) $pagos[] = 'Obra social';
 
 // Filtros (todos por GET para poder compartir o recargar la búsqueda)
 $q = trim($_GET['q'] ?? '');
@@ -24,8 +24,8 @@ $where = 'v.negocio_id=?'; $par = [$nid];
 if ($q !== '') {
     $like = '%' . addcslashes($q, '\\%_') . '%';
     $num = ltrim($q, '#');
-    $cond = 'p.nombre LIKE ? OR v.cliente_nombre LIKE ? OR us.nombre LIKE ? OR v.detalle LIKE ?';
-    $par = array_merge($par, [$like, $like, $like, $like]);
+    $cond = 'p.nombre LIKE ? OR v.cliente_nombre LIKE ? OR us.nombre LIKE ?';
+    $par = array_merge($par, [$like, $like, $like]);
     if (ctype_digit($num)) { $cond .= ' OR v.id=?'; $par[] = (int)$num; }
     $where .= " AND ($cond)";
 }
@@ -56,16 +56,16 @@ $keep = array_filter(['q' => $q, 'pago' => $pago, 'vendedor' => $vend ?: '', 'de
 $hayFiltro = (bool)$keep;
 $link = function ($p) use ($keep) { return 'lux_historial_ventas.php?' . h(http_build_query($keep + ['pag' => $p])); };
 
-lux_header($clinica ? 'Historial de cobros' : 'Historial de ventas', ($neg ?: '—') . ' — buscá y filtrá todo lo registrado');
+lux_header('Historial de ventas', ($neg ?: '—') . ' — buscá y filtrá todo lo registrado');
 ?>
 <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
-<div class="kpi"><div class="label"><?= $hayFiltro ? 'Resultados' : ($clinica ? 'Cobros registrados' : 'Ventas registradas') ?></div><div class="value"><?= (int)$tot['n'] ?></div></div>
+<div class="kpi"><div class="label"><?= $hayFiltro ? 'Resultados' : 'Ventas registradas' ?></div><div class="value"><?= (int)$tot['n'] ?></div></div>
 <div class="kpi"><div class="label">Unidades</div><div class="value"><?= (int)$tot['uni'] ?></div></div>
 <div class="kpi"><div class="label">Monto total</div><div class="value"><?= money($tot['monto']) ?></div></div>
 </div>
 
 <form class="pedidos-filtros hist-filtros" method="get">
-<input type="text" name="q" value="<?= h($q) ?>" placeholder="Buscar por producto, cliente, vendedor, receta o N°...">
+<input type="text" name="q" value="<?= h($q) ?>" placeholder="Buscar por producto, cliente, vendedor o N°...">
 <select name="pago" onchange="this.form.submit()"><option value="">Todos los medios de pago</option>
 <?php foreach ($pagos as $pg): ?><option value="<?= h($pg) ?>" <?= $pg === $pago ? 'selected' : '' ?>><?= h($pg) ?></option><?php endforeach; ?></select>
 <select name="vendedor" onchange="this.form.submit()"><option value="">Todos los vendedores</option>
@@ -78,9 +78,9 @@ lux_header($clinica ? 'Historial de cobros' : 'Historial de ventas', ($neg ?: '�
 
 <?php if (!$lista): ?><div class="empty-state"><?= $hayFiltro ? 'No hay ventas que coincidan con la búsqueda.' : 'Todavía no hay ventas registradas.' ?></div>
 <?php else: ?>
-<div class="pedidos-tabla"><table><thead><tr><th>N°</th><th>Fecha</th><th><?= $clinica ? 'Prestación' : 'Producto' ?></th><th>Cant.</th><th>Total</th><th>Pago</th><th><?= $clinica ? 'Paciente' : 'Cliente' ?></th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
+<div class="pedidos-tabla"><table><thead><tr><th>N°</th><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Cliente</th><th>Registró</th></tr></thead><tbody>
 <?php foreach ($lista as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
-<td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td><td><?= h($x['detalle'] ?? '—') ?></td></tr><?php endforeach; ?>
+<td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td></tr><?php endforeach; ?>
 </tbody></table></div>
 <?php if ($paginas > 1): ?>
 <div class="hist-pag"><?php if ($pag > 1): ?><a class="btn-detalle" href="<?= $link($pag - 1) ?>">← Anterior</a><?php endif; ?>

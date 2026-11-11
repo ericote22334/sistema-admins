@@ -6,7 +6,7 @@ function lux_nav($rol) {
         $n = ['lux_panel_general.php' => 'Panel general', 'lux_negocios.php' => 'Negocios'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_ventas.php' => '↳ Ventas / turnos', 'lux_inventario.php' => '↳ Inventario'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_registrar_venta.php' => '↳ ' . ((int)$_SESSION['negocio_activo'] === 4 ? 'Registrar cobro' : 'Registrar venta')];
-        if (!empty($_SESSION['negocio_activo'])) $n += ['lux_historial_ventas.php' => '↳ ' . ((int)$_SESSION['negocio_activo'] === 4 ? 'Historial de cobros' : 'Historial de ventas')];
+        if ((int)($_SESSION['negocio_activo'] ?? 0) === 1) $n += ['lux_historial_ventas.php' => '↳ Historial de ventas'];
         if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_pedidos.php' => '↳ Pedidos'];
         return $n + ['lux_usuarios.php' => 'Usuarios y roles', 'lux_perfil.php' => 'Mi perfil'];
     }
@@ -15,7 +15,7 @@ function lux_nav($rol) {
         'lux_perfil.php' => 'Mi perfil'];
     $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
     $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
-    $n['lux_historial_ventas.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Historial de cobros' : 'Historial de ventas';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 1) $n['lux_historial_ventas.php'] = 'Historial de ventas';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_pedidos.php'] = 'Pedidos';
     if ($rol === 'admin') $n['lux_usuarios.php'] = 'Empleados';
     return $n + ['lux_perfil.php' => 'Mi perfil'];
