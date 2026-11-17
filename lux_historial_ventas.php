@@ -3,13 +3,14 @@ require __DIR__ . '/lux_layout.php';
 $u = lux_require(['superadmin', 'admin', 'empleado']);
 $nid = lux_negocio_id($u);
 if (!$nid) lux_redirect('lux_negocios.php');
-// El historial de ventas con filtro de búsqueda existe solo en el sistema de la Papelería (negocio 1)
-if ($nid !== 1) lux_redirect('lux_ventas.php');
+if ($nid === 4) lux_redirect('lux_ventas.php');
 
 $neg = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $neg->execute([$nid]); $neg = $neg->fetchColumn();
 
-// Medios de pago de la papelería (mismos que en lux_registrar_venta.php)
+// Medios de pago disponibles en el negocio seleccionado
 $pagos = ['Efectivo', 'Tarjeta de débito', 'Tarjeta de crédito', 'Transferencia'];
+if ($nid === 2) $pagos[] = 'Obra social';
+$pagos[] = 'Tarjeta';
 
 // Filtros (todos por GET para poder compartir o recargar la búsqueda)
 $q = trim($_GET['q'] ?? '');

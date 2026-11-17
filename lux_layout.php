@@ -6,7 +6,7 @@ function lux_nav($rol) {
         $n = ['lux_panel_general.php' => 'Panel general', 'lux_negocios.php' => 'Negocios'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_ventas.php' => '↳ Ventas / turnos', 'lux_inventario.php' => '↳ Inventario'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_registrar_venta.php' => '↳ ' . ((int)$_SESSION['negocio_activo'] === 4 ? 'Registrar cobro' : 'Registrar venta')];
-        if ((int)($_SESSION['negocio_activo'] ?? 0) === 1) $n += ['lux_historial_ventas.php' => '↳ Historial de ventas'];
+        if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_historial_ventas.php' => '↳ Historial de ventas'];
         if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_pedidos.php' => '↳ Pedidos'];
         return $n + ['lux_usuarios.php' => 'Usuarios y roles', 'lux_perfil.php' => 'Mi perfil'];
     }
@@ -15,7 +15,7 @@ function lux_nav($rol) {
         'lux_perfil.php' => 'Mi perfil'];
     $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
     $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
-    if ((int)(lux_user()['negocio_id'] ?? 0) === 1) $n['lux_historial_ventas.php'] = 'Historial de ventas';
+    if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_historial_ventas.php'] = 'Historial de ventas';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_pedidos.php'] = 'Pedidos';
     if ($rol === 'admin') $n['lux_usuarios.php'] = 'Empleados';
     return $n + ['lux_perfil.php' => 'Mi perfil'];
@@ -29,6 +29,7 @@ function lux_header($titulo, $sub) {
     ?><!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Grupo Lux · <?= h($titulo) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="lux_tema.js?v=<?= (int)@filemtime(__DIR__ . '/lux_tema.js') ?>"></script>
 <link rel="stylesheet" href="lux_estilos.css?v=<?= (int)@filemtime(__DIR__ . '/lux_estilos.css') ?>"></head><body><div class="shell">
 <aside class="sidebar"><div class="brand">GRUPO <span>LUX</span></div>
 <?php foreach (lux_nav($u['rol']) as $f => $l): ?>
@@ -37,7 +38,8 @@ function lux_header($titulo, $sub) {
 <div class="sidebar-foot">Sesión: <b style="color:var(--text)"><?= h(($u['puesto'] ?? '') ?: $labels[$u['rol']]) ?></b><br>
 <a href="lux_logout.php" style="text-decoration:underline">Cerrar sesión</a></div></aside>
 <div class="main"><div class="topbar"><div><h1><?= h($titulo) ?></h1><div class="sub"><?= h($sub) ?></div></div>
-<div class="who"><span>Conectado como <b><?= h($u['nombre']) ?></b></span><div class="avatar"><?= h($ini) ?></div></div></div>
+<div class="topbar-actions"><button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar a modo oscuro" aria-pressed="false"><span data-theme-icon aria-hidden="true">🌙</span><span data-theme-label>Modo oscuro</span></button>
+<div class="who"><span>Conectado como <b><?= h($u['nombre']) ?></b></span><div class="avatar"><?= h($ini) ?></div></div></div></div>
 <div class="content">
 <?php if ($u['rol'] === 'superadmin' && !empty($_SESSION['negocio_activo']) && in_array($actual, ['lux_ventas.php', 'lux_inventario.php', 'lux_pedidos.php', 'lux_registrar_venta.php', 'lux_historial_ventas.php'])):
   $nn = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $nn->execute([$_SESSION['negocio_activo']]); ?>

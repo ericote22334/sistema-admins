@@ -28,15 +28,16 @@ La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves
 |---|---|
 | lux_config.php | Conexión MySQL, instalación de tablas y datos demo, sesión, helpers, CSRF |
 | lux_layout.php | Cabecera/sidebar por rol y componentes comunes |
-| lux_login.php / lux_logout.php | Ingreso y salida (password_hash) |
+| lux_tema.js | Selector de modo claro/oscuro, persistido entre páginas en el navegador |
+| lux_login.php / lux_registro.php / lux_logout.php | Ingreso, registro de clientes y salida (password_hash) |
 | lux_panel_general.php | Super Admin: KPIs y gráfico de ventas reales |
 | lux_negocios.php | Super Admin: estado de los 4 negocios |
 | lux_usuarios.php | Super Admin: gestionar usuarios; Administrador: agregar empleados a su negocio |
 | lux_ventas.php | Empleado/Admin: resumen y registrar venta (descuenta stock) |
 | lux_inventario.php | Empleado/Admin: buscar, alta de productos y reposición |
-| lux_mis_turnos.php | Cliente: compras, reservar y cancelar turnos |
-| lux_explorar.php | Cliente: catálogo de negocios |
-| lux_pedidos.php | Empleado/Admin (comercios): buscar pedidos, filtrar por estado, cambiar estado y ver detalle |
+| lux_mis_turnos.php | Cliente: compras, seguimiento de pedidos, reservar y cancelar turnos |
+| lux_explorar.php | Cliente: catálogo y pedidos de Papelería, Farmacia y ElectroLux |
+| lux_pedidos.php | Empleado/Admin (comercios): buscar pedidos, revisar pago/entrega y confirmar; al entregar registra la venta y descuenta stock |
 | lux_perfil.php | Todos: editar nombre y cambiar contraseña |
 
 ## Alertas (según el sistema)

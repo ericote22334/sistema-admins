@@ -33,6 +33,8 @@ else {
     if ($versionInstalada < 3) lux_migrar_3($db);
     if ($versionInstalada < 4) lux_migrar_4($db);
     if ($versionInstalada < 5) lux_migrar_5($db);
+    if ($versionInstalada < 6) lux_migrar_6($db);
+    if ($versionInstalada < 7) lux_migrar_7($db);
 }
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -159,6 +161,30 @@ function lux_migrar_5($db) {
         if (!$existe) $db->exec("ALTER TABLE ventas ADD COLUMN $col $def NULL");
     }
     $db->exec('INSERT INTO lux_schema_version (version) VALUES (5)');
+}
+
+// Migración v6: relaciona cada pedido entregado con su venta para evitar duplicados
+function lux_migrar_6($db) {
+    $columna = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='pedidos' AND column_name='venta_id'")->fetchColumn();
+    if (!$columna) $db->exec('ALTER TABLE pedidos ADD COLUMN venta_id INT UNSIGNED NULL');
+    $indice = (int)$db->query("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='pedidos' AND index_name='uq_pedidos_venta_id'")->fetchColumn();
+    if (!$indice) $db->exec('ALTER TABLE pedidos ADD UNIQUE INDEX uq_pedidos_venta_id (venta_id)');
+    $fk = (int)$db->query("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='pedidos' AND constraint_name='fk_pedidos_venta'")->fetchColumn();
+    if (!$fk) $db->exec('ALTER TABLE pedidos ADD CONSTRAINT fk_pedidos_venta FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE SET NULL');
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (6)');
+}
+
+// Migración v7: datos de pago y entrega de los pedidos de clientes
+function lux_migrar_7($db) {
+    foreach ([
+        'medio_pago' => 'VARCHAR(30) NULL',
+        'entrega' => 'VARCHAR(30) NULL',
+        'direccion_envio' => 'VARCHAR(255) NULL',
+    ] as $col => $def) {
+        $existe = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='pedidos' AND column_name='$col'")->fetchColumn();
+        if (!$existe) $db->exec("ALTER TABLE pedidos ADD COLUMN $col $def");
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (7)');
 }
 
 function lux_instalar($db) {
