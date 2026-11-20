@@ -19,7 +19,7 @@ $t = $db->prepare("SELECT * FROM turnos WHERE cliente_id=? AND estado<>'Cancelad
 $proximo = null; foreach (array_reverse($turnos) as $x) if (strtotime($x['fecha']) >= time()) { $proximo = $x; break; }
 $c = $db->prepare('SELECT v.*, n.nombre negocio, p.nombre producto FROM ventas v JOIN negocios n ON n.id=v.negocio_id JOIN productos p ON p.id=v.producto_id WHERE v.cliente_id=? ORDER BY v.fecha DESC LIMIT 10');
 $c->execute([$u['id']]); $compras = $c->fetchAll();
-$p = $db->prepare('SELECT pe.id,pe.fecha,pe.cantidad,pe.estado,pe.medio_pago,pe.entrega,pe.direccion_envio,n.nombre negocio,pr.nombre producto
+$p = $db->prepare('SELECT pe.id,pe.fecha,pe.cantidad,pe.estado,pe.medio_pago,pe.entrega,pe.direccion_envio,pe.numero_obra_social,n.id negocio_id,n.nombre negocio,pr.nombre producto
     FROM pedidos pe JOIN negocios n ON n.id=pe.negocio_id JOIN productos pr ON pr.id=pe.producto_id
     WHERE pe.cliente_id=? ORDER BY pe.fecha DESC,pe.id DESC LIMIT 20');
 $p->execute([$u['id']]); $pedidos = $p->fetchAll();
@@ -38,7 +38,7 @@ if (!$compras): ?><tr><td colspan="4">Todavía no hay compras.</td></tr><?php en
 <div class="pedidos-tabla"><table><thead><tr><th>N°</th><th>Fecha</th><th>Negocio</th><th>Producto</th><th>Cantidad</th><th>Pago</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>
 <?php foreach ($pedidos as $p): ?><tr><td><b>#<?= (int)$p['id'] ?></b></td><td><?= h(date('d/m/Y H:i', strtotime($p['fecha']))) ?></td>
 <td><?= h($p['negocio']) ?></td><td><?= h($p['producto']) ?></td><td><?= (int)$p['cantidad'] ?></td><td><?= h($p['medio_pago'] ?? '—') ?></td>
-<td><?= h($p['entrega'] ?? '—') ?><?= !empty($p['direccion_envio']) ? '<div style="font-size:12px;color:var(--text-muted)">' . h($p['direccion_envio']) . '</div>' : '' ?></td>
+<td><?= h($p['entrega'] ?? '—') ?><?= !empty($p['direccion_envio']) ? '<div style="font-size:12px;color:var(--text-muted)">' . h($p['direccion_envio']) . '</div>' : '' ?><?= (int)$p['negocio_id'] === 2 && isset($p['numero_obra_social']) && $p['numero_obra_social'] !== '' ? '<div style="font-size:12px;color:var(--text-muted)">Obra social: ' . h($p['numero_obra_social']) . '</div>' : '' ?></td>
 <td><?= h($p['estado']) ?></td></tr><?php endforeach; ?>
 </tbody></table></div><?php endif; ?>
 <form method="post" class="quick-form"><?= csrf_field() ?><input type="hidden" name="accion" value="reservar">

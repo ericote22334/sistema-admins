@@ -36,6 +36,8 @@ else {
     if ($versionInstalada < 6) lux_migrar_6($db);
     if ($versionInstalada < 7) lux_migrar_7($db);
     if ($versionInstalada < 8) lux_migrar_8($db);
+    if ($versionInstalada < 9) lux_migrar_9($db);
+    if ($versionInstalada < 10) lux_migrar_10($db);
 }
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -58,17 +60,47 @@ function lux_carritos_cargar($negocioId, $usuarioId) {
     if (!isset($estado['carts'][$estado['active']])) $estado['active'] = '';
     return $estado;
 }
-function lux_carrito_crear(&$estado, $nombre = '') {
-    do { $id = bin2hex(random_bytes(8)); } while (isset($estado['carts'][$id]));
-    $numero = (int)$estado['next'];
-    $estado['next'] = $numero + 1;
-    $nombre = trim((string)$nombre);
-    $estado['carts'][$id] = ['nombre' => $nombre !== '' ? $nombre : 'Carrito ' . $numero, 'items' => []];
-    $estado['active'] = $id;
-    return $id;
-}
-function lux_carritos_guardar($negocioId, $usuarioId, $estado) {
-    $_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId] = $estado;
+function lux_carritos_importar_sesion($db, $negocioId, $usuarioId) {
+    if (!isset($_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId])) return;
+    $estado = lux_carritos_cargar($negocioId, $usuarioId);
+    if (!$estado['carts']) {
+        unset($_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId]);
+        return;
+    }
+    $carrito = $db->prepare('INSERT INTO venta_carritos(negocio_id,creado_por,nombre,fecha) VALUES(?,?,?,?)');
+    $productoValido = $db->prepare('SELECT id FROM productos WHERE id=? AND negocio_id=?');
+    $linea = $db->prepare('INSERT INTO venta_carrito_items(carrito_id,producto_id,cantidad) VALUES(?,?,?)');
+    $noImportados = 0;
+    $db->beginTransaction();
+    try {
+        foreach ($estado['carts'] as $datos) {
+            $nombre = is_scalar($datos['nombre'] ?? null) ? trim((string)$datos['nombre']) : 'Carrito anterior';
+            if ($nombre === '' || mb_strlen($nombre) > 80) $nombre = 'Carrito anterior';
+            $carrito->execute([(int)$negocioId, (int)$usuarioId, $nombre, date('Y-m-d H:i:s')]);
+            $carritoId = (int)$db->lastInsertId();
+            $items = is_array($datos['items'] ?? null) ? $datos['items'] : [];
+            foreach ($items as $id => $cantidad) {
+                $id = filter_var((string)$id, FILTER_VALIDATE_INT);
+                $cantidad = is_scalar($cantidad) ? filter_var((string)$cantidad, FILTER_VALIDATE_INT) : false;
+                if ($id === false || $cantidad === false || $cantidad < 1 || $cantidad > 2147483647) {
+                    $noImportados++;
+                    continue;
+                }
+                $productoValido->execute([$id, (int)$negocioId]);
+                if (!$productoValido->fetchColumn()) {
+                    $noImportados++;
+                    continue;
+                }
+                $linea->execute([$carritoId, $id, $cantidad]);
+            }
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    unset($_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId]);
+    if ($noImportados) flash("$noImportados producto(s) antiguos no se pudieron importar porque ya no existen o tenían una cantidad inválida.", true);
 }
 function flash($msg, $err = false) { $_SESSION['flash'] = [$msg, $err]; }
 function lux_redirect($to) { header("Location: $to"); exit; }
@@ -239,6 +271,46 @@ function lux_migrar_8($db) {
         $db->exec('ALTER TABLE ventas ADD CONSTRAINT fk_ventas_ticket FOREIGN KEY (ticket_id) REFERENCES venta_tickets(id) ON DELETE SET NULL');
     }
     $db->exec('INSERT INTO lux_schema_version (version) VALUES (8)');
+}
+
+// Migración v9: carritos compartidos por todo el personal de cada negocio
+function lux_migrar_9($db) {
+    $db->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS venta_carritos (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    negocio_id INT UNSIGNED NOT NULL,
+    creado_por INT UNSIGNED NOT NULL,
+    nombre VARCHAR(80) NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'Abierto',
+    fecha DATETIME NOT NULL,
+    ticket_id INT UNSIGNED NULL,
+    CONSTRAINT fk_venta_carritos_negocio FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_venta_carritos_usuario FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_venta_carritos_ticket FOREIGN KEY (ticket_id) REFERENCES venta_tickets(id) ON DELETE SET NULL,
+    UNIQUE INDEX uq_venta_carritos_ticket (ticket_id),
+    INDEX idx_venta_carritos_negocio_estado (negocio_id,estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL
+    );
+    $db->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS venta_carrito_items (
+    carrito_id INT UNSIGNED NOT NULL,
+    producto_id INT UNSIGNED NOT NULL,
+    cantidad INT UNSIGNED NOT NULL,
+    PRIMARY KEY (carrito_id,producto_id),
+    CONSTRAINT fk_venta_carrito_items_carrito FOREIGN KEY (carrito_id) REFERENCES venta_carritos(id) ON DELETE CASCADE,
+    CONSTRAINT fk_venta_carrito_items_producto FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL
+    );
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (9)');
+}
+
+// Migración v10: número opcional de obra social en pedidos de Farmacia
+function lux_migrar_10($db) {
+    $columna = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='pedidos' AND column_name='numero_obra_social'")->fetchColumn();
+    if (!$columna) $db->exec('ALTER TABLE pedidos ADD COLUMN numero_obra_social VARCHAR(80) NULL');
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (10)');
 }
 
 function lux_instalar($db) {

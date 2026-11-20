@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($stock->rowCount() !== 1) $err = 'No se puede entregar el pedido: no hay stock suficiente. Reponé el inventario antes de confirmar.';
                 else {
                     $detalle = 'Pedido web #' . (int)$pedido['id'] . ' · ' . ($pedido['entrega'] ?: 'Entrega sin especificar');
+                    if ($nid == 2 && isset($pedido['numero_obra_social']) && $pedido['numero_obra_social'] !== '') $detalle .= ' · Obra social: ' . $pedido['numero_obra_social'];
                     $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cliente_id,cantidad,total,fecha,medio_pago,cliente_nombre,detalle)
                         VALUES(?,?,?,?,?,?,?,?,?,?)')->execute([
                         $nid, (int)$pedido['producto_id'], (int)$u['id'], $pedido['cliente_id'],
@@ -103,6 +104,7 @@ lux_header('Pedidos', 'Seguimiento y cambio de estado de los pedidos recibidos.'
 <div><dt>Medio de pago</dt><dd><?= h($det['medio_pago'] ?? '—') ?></dd></div>
 <div><dt>Entrega</dt><dd><?= h($det['entrega'] ?? '—') ?></dd></div>
 <?php if (!empty($det['direccion_envio'])): ?><div><dt>Dirección de envío</dt><dd><?= h($det['direccion_envio']) ?></dd></div><?php endif; ?>
+<?php if ($nid == 2 && isset($det['numero_obra_social']) && $det['numero_obra_social'] !== ''): ?><div><dt>Número de obra social</dt><dd><?= h($det['numero_obra_social']) ?></dd></div><?php endif; ?>
 <div><dt>Precio unitario</dt><dd><?= money($det['precio']) ?></dd></div>
 <div><dt>Total</dt><dd><?= money($det['cantidad'] * $det['precio']) ?></dd></div>
 <div><dt>Estado</dt><dd><?= h($det['estado']) ?></dd></div></dl></div>

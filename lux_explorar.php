@@ -9,20 +9,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $medioPago = $_POST['medio_pago'] ?? '';
         $entrega = $_POST['entrega'] ?? '';
         $direccion = trim($_POST['direccion_envio'] ?? '');
+        $obraSocialRaw = $_POST['numero_obra_social'] ?? '';
+        $obraSocialInvalida = !is_scalar($obraSocialRaw);
+        $numeroObraSocial = $obraSocialInvalida ? '' : trim((string)$obraSocialRaw);
         $mediosPago = ['Efectivo', 'Tarjeta', 'Transferencia'];
         $opcionesEntrega = ['Retiro en el local', 'Envío a domicilio'];
         $st = $db->prepare('SELECT id,negocio_id,nombre,stock FROM productos WHERE id=? AND negocio_id IN (1,2,3)');
         $st->execute([$productoId]);
         $producto = $st->fetch();
         if (!$producto || $cantidad === false || !in_array($medioPago, $mediosPago, true) || !in_array($entrega, $opcionesEntrega, true)) flash('Completá el producto, la cantidad, el medio de pago y la entrega.', true);
+        elseif ((int)$producto['negocio_id'] === 2 && ($obraSocialInvalida || mb_strlen($numeroObraSocial) > 80)) flash('Ingresá un número de obra social válido de hasta 80 caracteres.', true);
         elseif ($entrega === 'Envío a domicilio' && ($direccion === '' || mb_strlen($direccion) > 255)) flash('Para solicitar un envío, ingresá una dirección de hasta 255 caracteres.', true);
         elseif ((int)$producto['stock'] < $cantidad) flash('No hay stock suficiente de ese producto.', true);
         else {
-            $db->prepare("INSERT INTO pedidos(negocio_id,cliente_id,producto_id,cantidad,estado,fecha,medio_pago,entrega,direccion_envio)
-                VALUES(?,?,?,?,'Pendiente',?,?,?,?)")->execute([
+            $db->prepare("INSERT INTO pedidos(negocio_id,cliente_id,producto_id,cantidad,estado,fecha,medio_pago,entrega,direccion_envio,numero_obra_social)
+                VALUES(?,?,?,?,'Pendiente',?,?,?,?,?)")->execute([
                 (int)$producto['negocio_id'], (int)$u['id'], (int)$producto['id'], $cantidad,
                 date('Y-m-d H:i:s'), $medioPago, $entrega,
                 $entrega === 'Envío a domicilio' ? $direccion : null,
+                (int)$producto['negocio_id'] === 2 && $numeroObraSocial !== '' ? $numeroObraSocial : null,
             ]);
             flash('Pedido de «' . $producto['nombre'] . '» enviado al local y pendiente de confirmación.');
         }
@@ -62,6 +67,7 @@ if (!$listaProductos): ?><p class="shop-empty"><?= $buscar !== '' ? 'No se encon
 <label>Medio de pago<select name="medio_pago" required><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></label>
 <label>Entrega<select name="entrega" required><option>Retiro en el local</option><option>Envío a domicilio</option></select></label>
 <label class="shop-address">Dirección (si elegís envío)<input type="text" name="direccion_envio" maxlength="255" placeholder="Calle, número y localidad"></label>
+<?php if ((int)$n['id'] === 2): ?><label>Número de obra social (opcional)<input type="text" name="numero_obra_social" maxlength="80" autocomplete="off" placeholder="Número de afiliado"></label><?php endif; ?>
 </div>
 <div class="shop-order-actions"><input type="number" name="cantidad" value="1" min="1" max="<?= (int)$producto['stock'] ?>" required aria-label="Cantidad de <?= h($producto['nombre']) ?>">
 <button class="btn-small" type="submit">Confirmar pedido</button></div></form></details>

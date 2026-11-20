@@ -5,19 +5,29 @@ $nid = lux_negocio_id($u);
 if (!$nid) lux_redirect('lux_negocios.php');
 $clinica = ($nid == 4);
 $farmacia = ($nid == 2);
-$carritos = $farmacia ? lux_carritos_cargar($nid, $u['id']) : [];
+if ($farmacia) lux_carritos_importar_sesion($db, $nid, $u['id']);
+$cargarCarritos = function () use ($db, $nid) {
+    $st = $db->prepare("SELECT c.id,c.nombre,COUNT(i.producto_id) productos,COALESCE(SUM(i.cantidad*p.precio),0) total
+        FROM venta_carritos c
+        LEFT JOIN venta_carrito_items i ON i.carrito_id=c.id
+        LEFT JOIN productos p ON p.id=i.producto_id
+        WHERE c.negocio_id=? AND c.estado='Abierto'
+        GROUP BY c.id,c.nombre ORDER BY c.id");
+    $st->execute([$nid]);
+    return $st->fetchAll();
+};
+$carritos = $farmacia ? $cargarCarritos() : [];
 $carritoRaw = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['carrito_id'] ?? '') : ($_GET['carrito'] ?? '');
-$carritoId = is_scalar($carritoRaw) ? (string)$carritoRaw : '';
-if ($farmacia && $carritoId !== '') {
-    if (!isset($carritos['carts'][$carritoId])) {
+$carritoId = is_scalar($carritoRaw) ? filter_var((string)$carritoRaw, FILTER_VALIDATE_INT) : false;
+$carritoId = $carritoId !== false && $carritoId > 0 ? (int)$carritoId : 0;
+$carrito = null;
+if ($farmacia && $carritoId) {
+    foreach ($carritos as $abierto) if ((int)$abierto['id'] === $carritoId) $carrito = $abierto;
+    if (!$carrito) {
         flash('Ese carrito ya no está disponible.', true);
         lux_redirect('lux_carrito.php');
     }
-    $carritos['active'] = $carritoId;
-    lux_carritos_guardar($nid, $u['id'], $carritos);
 }
-$cart = $farmacia && $carritoId !== '' ? ($carritos['carts'][$carritoId]['items'] ?? []) : [];
-if (!is_array($cart)) $cart = [];
 // Se consulta el rol y el puesto actuales en la base (la sesión puede estar desactualizada tras un cambio de puesto)
 $fr = $db->prepare('SELECT rol, puesto FROM usuarios WHERE id=?'); $fr->execute([$u['id']]); $fr = $fr->fetch() ?: [];
 $puede = lux_puede_vender(['rol' => $fr['rol'] ?? $u['rol'], 'puesto' => $fr['puesto'] ?? null, 'negocio_id' => $u['negocio_id'] ?? null]);
@@ -33,47 +43,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $datosInvalidos = !is_scalar($clienteRaw) || !is_scalar($extraRaw);
     $cliente = is_scalar($clienteRaw) ? trim((string)$clienteRaw) : '';
     if ($farmacia) {
-        if ($carritoId === '') {
+        if (!$carritoId) {
             flash('Elegí qué carrito querés cobrar.', true);
             lux_redirect('lux_carrito.php');
         }
         $extra = is_scalar($extraRaw) ? trim((string)$extraRaw) : '';
-        $items = []; $itemsInvalidos = !is_array($cart);
-        if (!is_array($cart)) $cart = [];
-        foreach ($cart as $id => $cantidad) {
-            if (!is_scalar($cantidad)) { $itemsInvalidos = true; break; }
-            $id = filter_var((string)$id, FILTER_VALIDATE_INT);
-            $cantidad = filter_var((string)$cantidad, FILTER_VALIDATE_INT);
-            if ($id === false || $id < 1 || $cantidad === false || $cantidad < 1 || $cantidad > 2147483647) {
-                $itemsInvalidos = true;
-                break;
-            }
-            $items[$id] = ($items[$id] ?? 0) + $cantidad;
-        }
-        if ($itemsInvalidos || !$items) {
-            flash('No hay productos válidos en el carrito. Cargá los productos antes de cobrar.', true);
-            lux_redirect('lux_carrito.php?carrito=' . rawurlencode($carritoId));
-        } elseif ($pago === '' || $datosInvalidos || mb_strlen($cliente) > 120 || mb_strlen($extra) > 100) {
+        if ($pago === '' || $datosInvalidos || mb_strlen($cliente) > 120 || mb_strlen($extra) > 100) {
             flash('Revisá los productos, el medio de pago y los datos del cliente o receta.', true);
         } else {
-            ksort($items, SORT_NUMERIC);
             $db->beginTransaction();
             try {
-                $marks = implode(',', array_fill(0, count($items), '?'));
-                $sp = $db->prepare("SELECT id, nombre, precio, stock FROM productos WHERE negocio_id=? AND id IN ($marks) ORDER BY id FOR UPDATE");
-                $sp->execute(array_merge([$nid], array_keys($items)));
-                $productosVenta = [];
-                foreach ($sp->fetchAll() as $producto) $productosVenta[(int)$producto['id']] = $producto;
-                $errorVenta = count($productosVenta) !== count($items) ? 'Hay productos del carrito que no pertenecen a esta farmacia.' : '';
+                $lock = $db->prepare("SELECT id FROM venta_carritos WHERE id=? AND negocio_id=? AND estado='Abierto' FOR UPDATE");
+                $lock->execute([$carritoId, $nid]);
+                $errorVenta = $lock->fetchColumn() ? '' : 'Ese carrito ya se cobró o no está disponible.';
+                $sp = $db->prepare('SELECT p.id,p.nombre,p.precio,p.stock,i.cantidad FROM venta_carrito_items i JOIN productos p ON p.id=i.producto_id WHERE i.carrito_id=? AND p.negocio_id=? ORDER BY p.id FOR UPDATE');
+                $sp->execute([$carritoId, $nid]);
+                $items = $sp->fetchAll();
+                if (!$items && $errorVenta === '') $errorVenta = 'El carrito no tiene productos para cobrar.';
                 $totalVenta = 0.0;
-                foreach ($items as $id => $cantidad) {
+                foreach ($items as $item) {
                     if ($errorVenta !== '') break;
-                    $producto = $productosVenta[$id];
-                    if ((int)$producto['stock'] < $cantidad) {
-                        $errorVenta = "Stock insuficiente de {$producto['nombre']}.";
+                    if ((int)$item['stock'] < (int)$item['cantidad']) {
+                        $errorVenta = "Stock insuficiente de {$item['nombre']}.";
                         break;
                     }
-                    $totalVenta += (float)$producto['precio'] * $cantidad;
+                    $totalVenta += (float)$item['precio'] * (int)$item['cantidad'];
                 }
                 if ($totalVenta > 9999999999.99) $errorVenta = 'El total de la venta supera el máximo permitido.';
                 if ($errorVenta !== '') {
@@ -87,19 +81,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ticketId = (int)$db->lastInsertId();
                     $actualizarStock = $db->prepare('UPDATE productos SET stock=stock-? WHERE id=? AND negocio_id=? AND stock>=?');
                     $insertarLinea = $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cantidad,total,fecha,medio_pago,cliente_nombre,detalle,ticket_id) VALUES(?,?,?,?,?,?,?,?,?,?)');
-                    foreach ($items as $id => $cantidad) {
-                        $producto = $productosVenta[$id];
-                        $actualizarStock->execute([$cantidad, $id, $nid, $cantidad]);
+                    foreach ($items as $item) {
+                        $cantidad = (int)$item['cantidad'];
+                        $actualizarStock->execute([$cantidad, $item['id'], $nid, $cantidad]);
                         if ($actualizarStock->rowCount() !== 1) {
-                            throw new RuntimeException("No se pudo actualizar el stock de {$producto['nombre']}.");
+                            throw new RuntimeException("No se pudo actualizar el stock de {$item['nombre']}.");
                         }
-                        $insertarLinea->execute([$nid, $id, $u['id'], $cantidad, (float)$producto['precio'] * $cantidad, $fecha, $pago, $cliente !== '' ? $cliente : null, $detalle, $ticketId]);
+                        $insertarLinea->execute([$nid, $item['id'], $u['id'], $cantidad, (float)$item['precio'] * $cantidad, $fecha, $pago, $cliente !== '' ? $cliente : null, $detalle, $ticketId]);
                     }
+                    $db->prepare("UPDATE venta_carritos SET estado='Cobrado',ticket_id=? WHERE id=? AND negocio_id=? AND estado='Abierto'")
+                       ->execute([$ticketId, $carritoId, $nid]);
                     $db->commit();
-                    unset($carritos['carts'][$carritoId]);
-                    $carritos['active'] = '';
-                    lux_carritos_guardar($nid, $u['id'], $carritos);
-                    flash("Venta #$ticketId registrada — " . count($items) . ' productos, total ' . money($totalVenta) . " ($pago).");
+                    flash("Carrito #$carritoId cobrado. Venta #$ticketId registrada — " . count($items) . ' productos, total ' . money($totalVenta) . " ($pago).");
                 }
             } catch (Throwable $e) {
                 if ($db->inTransaction()) $db->rollBack();
@@ -131,70 +124,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $destino = 'lux_registrar_venta.php';
-    if ($farmacia && isset($carritos['carts'][$carritoId])) $destino .= '?carrito=' . rawurlencode($carritoId);
+    if ($farmacia && $carritoId) {
+        $st = $db->prepare("SELECT COUNT(*) FROM venta_carritos WHERE id=? AND negocio_id=? AND estado='Abierto'");
+        $st->execute([$carritoId, $nid]);
+        if ((int)$st->fetchColumn()) $destino .= '?carrito=' . $carritoId;
+    }
     lux_redirect($destino);
 }
 $neg = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $neg->execute([$nid]); $neg = $neg->fetchColumn();
 $ps = $db->prepare('SELECT id, nombre, precio, stock FROM productos WHERE negocio_id=? ORDER BY nombre'); $ps->execute([$nid]); $prods = $ps->fetchAll();
-$mapa = []; $mapaNombres = [];
+$mapaNombres = [];
 foreach ($prods as $p) {
-    $mapa[(int)$p['id']] = ['nombre' => $p['nombre'], 'precio' => (float)$p['precio'], 'stock' => (int)$p['stock']];
     $mapaNombres[$p['nombre']] = ['precio' => (float)$p['precio'], 'stock' => (int)$p['stock']];
 }
 $checkoutLines = []; $totalCarrito = 0.0; $errorCarrito = '';
-if ($farmacia) {
-    if (!is_array($cart)) $cart = [];
-    if ($carritoId !== '' && isset($carritos['carts'][$carritoId])) {
-        $errorCarrito = '';
-        foreach ($cart as $id => $cantidad) {
-            $id = filter_var((string)$id, FILTER_VALIDATE_INT);
-            $cantidad = is_scalar($cantidad) ? filter_var((string)$cantidad, FILTER_VALIDATE_INT) : false;
-            if ($id === false || $cantidad === false || $cantidad < 1 || !isset($mapa[$id])) {
-                $errorCarrito = 'Hay productos inválidos o que ya no están en el inventario.';
-                continue;
-            }
-            $producto = $mapa[$id];
-            if ($cantidad > $producto['stock']) $errorCarrito = "Stock insuficiente de {$producto['nombre']}; actualizá el carrito.";
-            $subtotal = $producto['precio'] * $cantidad;
-            $totalCarrito += $subtotal;
-            $checkoutLines[] = ['producto' => $producto, 'cantidad' => $cantidad, 'subtotal' => $subtotal];
-        }
-        if ($totalCarrito > 9999999999.99) $errorCarrito = 'El total del carrito supera el máximo permitido.';
+if ($farmacia && $carritoId && $carrito) {
+    $st = $db->prepare('SELECT p.id,p.nombre,p.precio,p.stock,i.cantidad FROM venta_carrito_items i JOIN productos p ON p.id=i.producto_id WHERE i.carrito_id=? AND p.negocio_id=? ORDER BY p.nombre');
+    $st->execute([$carritoId, $nid]);
+    $itemsCarrito = $st->fetchAll();
+    foreach ($itemsCarrito as $item) {
+        $subtotal = (float)$item['precio'] * (int)$item['cantidad'];
+        $totalCarrito += $subtotal;
+        if ((int)$item['cantidad'] > (int)$item['stock']) $errorCarrito = "Stock insuficiente de {$item['nombre']}; actualizá el carrito.";
+        $checkoutLines[] = ['producto' => $item, 'cantidad' => (int)$item['cantidad'], 'subtotal' => $subtotal];
     }
+    if ($totalCarrito > 9999999999.99) $errorCarrito = 'El total del carrito supera el máximo permitido.';
 }
 $hs = $db->prepare('SELECT v.*, p.nombre producto, us.nombre vendedor FROM ventas v JOIN productos p ON p.id=v.producto_id JOIN usuarios us ON us.id=v.usuario_id
     WHERE v.negocio_id=? ORDER BY v.fecha DESC, v.id DESC LIMIT 12');
 $hs->execute([$nid]); $hist = $hs->fetchAll();
 $titulo = $clinica ? 'Registrar cobro' : 'Registrar venta';
 lux_header($titulo, ($neg ?: '—') . ($farmacia ? ' — revisá el carrito cargado y completá el cobro' : ($clinica ? ' — escribí la prestación y los datos del paciente' : ' — escribí el producto vendido y completá los datos')));
-if (!$puede): ?>
-<div class="venta-aviso">Tu puesto (<?= h($fr['puesto'] ?? '') ?>) no registra ventas en este negocio. Si te corresponde hacerlo, pedile al administrador que revise tu puesto.</div>
-<?php else: ?>
-<?php if ($farmacia): ?>
+if ($farmacia): ?>
+<?php if (!$puede): ?><div class="venta-aviso">Tu puesto puede consultar los carritos de Farmacia, pero no cobrar ventas.</div><?php endif; ?>
 <div class="venta-card farmacia-checkout">
-<?php if ($carritoId === ''): ?>
-<div class="farmacia-encabezado"><h2 class="farmacia-titulo">Elegí qué carrito cobrar</h2><a class="btn-link" href="lux_carrito.php">Administrar carritos</a></div>
-<?php if (!$carritos['carts']): ?><div class="empty-state">No hay carritos abiertos. <a href="lux_carrito.php">Crear un carrito</a></div>
+<?php if (!$carritoId): ?>
+<div class="farmacia-encabezado"><h2 class="farmacia-titulo"><?= $puede ? 'Elegí qué carrito cobrar' : 'Carritos abiertos de Farmacia' ?></h2><a class="btn-link" href="lux_carrito.php"><?= $puede ? 'Administrar carritos' : 'Ver carritos' ?></a></div>
+<?php if (!$carritos): ?><div class="empty-state">No hay carritos abiertos.<?php if ($puede): ?> <a href="lux_carrito.php">Crear un carrito</a><?php endif; ?></div>
 <?php else: ?><div class="farmacia-lista-carritos">
-<?php foreach ($carritos['carts'] as $id => $datos): $itemsAbiertos = is_array($datos['items'] ?? null) ? $datos['items'] : []; ?>
-<div class="farmacia-carrito-resumen"><div><b><?= h($datos['nombre'] ?? 'Carrito') ?></b><span><?= count($itemsAbiertos) ?> <?= count($itemsAbiertos) === 1 ? 'producto' : 'productos' ?></span></div>
-<a class="btn-small" href="lux_registrar_venta.php?carrito=<?= h(rawurlencode($id)) ?>">Seleccionar para cobrar</a></div>
+<?php foreach ($carritos as $abierto): ?>
+<div class="farmacia-carrito-resumen"><div><b>Carrito #<?= (int)$abierto['id'] ?> · <?= h($abierto['nombre']) ?></b><span><?= (int)$abierto['productos'] ?> <?= (int)$abierto['productos'] === 1 ? 'producto' : 'productos' ?> · <?= money($abierto['total']) ?></span></div>
+<a class="btn-small" href="lux_registrar_venta.php?carrito=<?= (int)$abierto['id'] ?>"><?= $puede ? 'Seleccionar para cobrar' : 'Consultar carrito' ?></a></div>
 <?php endforeach; ?></div><?php endif; ?>
 <?php else: ?>
-<div class="farmacia-encabezado"><h2 class="farmacia-titulo"><?= h($carritos['carts'][$carritoId]['nombre'] ?? 'Carrito') ?> · resumen de compra</h2><a class="btn-link" href="lux_carrito.php?carrito=<?= h(rawurlencode($carritoId)) ?>">Modificar carrito</a></div>
+<div class="farmacia-encabezado"><h2 class="farmacia-titulo">Carrito #<?= (int)$carritoId ?> · <?= h($carrito['nombre']) ?></h2><a class="btn-link" href="lux_carrito.php?carrito=<?= (int)$carritoId ?>"><?= $puede ? 'Modificar carrito' : 'Volver a carritos' ?></a></div>
 <?php if (!$checkoutLines && $errorCarrito === ''): ?>
-<div class="empty-state">Este carrito no tiene productos. <a href="lux_carrito.php?carrito=<?= h(rawurlencode($carritoId)) ?>">Cargar productos</a></div>
+<div class="empty-state">Este carrito no tiene productos. <a href="lux_carrito.php?carrito=<?= (int)$carritoId ?>"><?= $puede ? 'Cargar productos' : 'Volver al carrito' ?></a></div>
 <?php elseif (!$checkoutLines): ?>
-<div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= h(rawurlencode($carritoId)) ?>">Volver al carrito</a></div>
+<div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= (int)$carritoId ?>">Volver al carrito</a></div>
 <?php else: ?>
 <div class="pedidos-tabla"><table><thead><tr><th>Producto</th><th>Precio unitario</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>
 <?php foreach ($checkoutLines as $linea): ?><tr><td><?= h($linea['producto']['nombre']) ?></td><td><?= money($linea['producto']['precio']) ?></td><td><?= (int)$linea['cantidad'] ?></td><td><?= money($linea['subtotal']) ?></td></tr><?php endforeach; ?>
 </tbody></table></div>
 <?php if ($errorCarrito !== ''): ?>
-<div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= h(rawurlencode($carritoId)) ?>">Volver al carrito</a></div>
+<div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= (int)$carritoId ?>">Volver al carrito</a></div>
+<?php elseif (!$puede): ?>
+<div class="venta-aviso">Tu puesto puede revisar este carrito, pero no registrar el cobro.</div>
 <?php else: ?>
 <form method="post" class="venta-form farmacia-cobro" autocomplete="off"><?= csrf_field() ?>
-<input type="hidden" name="carrito_id" value="<?= h($carritoId) ?>">
+<input type="hidden" name="carrito_id" value="<?= (int)$carritoId ?>">
 <div class="field"><label>Medio de pago</label><select name="pago" required><?php foreach ($pagos as $pg): ?><option><?= h($pg) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label>Cliente (opcional)</label><input type="text" name="cliente" maxlength="120" placeholder="Nombre y apellido"></div>
 <div class="field"><label>Receta / obra social (opcional)</label><input type="text" name="extra" maxlength="100" placeholder="N° de receta u obra social"></div>
@@ -204,6 +192,9 @@ if (!$puede): ?>
 <?php endif; ?>
 <?php endif; ?>
 </div>
+<?php else: ?>
+<?php if (!$puede): ?>
+<div class="venta-aviso">Tu puesto (<?= h($fr['puesto'] ?? '') ?>) no registra ventas en este negocio. Si te corresponde hacerlo, pedile al administrador que revise tu puesto.</div>
 <?php else: ?>
 <div class="venta-card"><form method="post" class="venta-form" autocomplete="off"><?= csrf_field() ?>
 <div class="field ancho"><label><?= $clinica ? 'Prestación / servicio' : ($nid == 2 ? 'Medicamento o producto' : 'Producto') ?></label>
@@ -236,8 +227,8 @@ if (!$puede): ?>
 <?php endif; ?>
 <div class="section-title"><h2><?= $clinica ? 'Últimos cobros registrados' : 'Últimas ventas registradas' ?></h2><?php if (!$clinica): ?><a class="btn-link" href="lux_historial_ventas.php">Ver historial completo →</a><?php endif; ?></div>
 <?php if (!$hist): ?><div class="empty-state">Todavía no hay ventas registradas.</div><?php else: ?>
-<div class="pedidos-tabla"><table><thead><tr><?php if ($farmacia): ?><th>Venta</th><?php endif; ?><th>Fecha</th><th><?= $clinica ? 'Prestación' : 'Producto' ?></th><th>Cant.</th><th>Total</th><th>Pago</th><th><?= $clinica ? 'Paciente' : 'Cliente' ?></th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
-<?php foreach ($hist as $x): ?><tr><?php if ($farmacia): ?><td><?= $x['ticket_id'] ? '#' . (int)$x['ticket_id'] : '—' ?></td><?php endif; ?><td><?= h(date('d/m H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
+<div class="pedidos-tabla"><table><thead><tr><th>N°</th><?php if ($farmacia): ?><th>Venta</th><?php endif; ?><th>Fecha</th><th><?= $clinica ? 'Prestación' : 'Producto' ?></th><th>Cant.</th><th>Total</th><th>Pago</th><th><?= $clinica ? 'Paciente' : 'Cliente' ?></th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
+<?php foreach ($hist as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($farmacia): ?><td><?= $x['ticket_id'] ? '#' . (int)$x['ticket_id'] : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
 <td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td><td><?= h($x['detalle'] ?? '—') ?></td></tr><?php endforeach; ?>
 </tbody></table></div><?php endif; ?>
 <?php lux_footer();
