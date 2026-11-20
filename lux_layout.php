@@ -5,6 +5,7 @@ function lux_nav($rol) {
     if ($rol === 'superadmin') {
         $n = ['lux_panel_general.php' => 'Panel general', 'lux_negocios.php' => 'Negocios'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_ventas.php' => '↳ Ventas / turnos', 'lux_inventario.php' => '↳ Inventario'];
+        if ((int)($_SESSION['negocio_activo'] ?? 0) === 2) $n += ['lux_carrito.php' => '↳ Carrito de farmacia'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_registrar_venta.php' => '↳ ' . ((int)$_SESSION['negocio_activo'] === 4 ? 'Registrar cobro' : 'Registrar venta')];
         if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_historial_ventas.php' => '↳ Historial de ventas'];
         if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_pedidos.php' => '↳ Pedidos'];
@@ -14,6 +15,7 @@ function lux_nav($rol) {
         'lux_mis_turnos.php' => 'Mis compras y turnos', 'lux_explorar.php' => 'Explorar negocios',
         'lux_perfil.php' => 'Mi perfil'];
     $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 2) $n['lux_carrito.php'] = 'Carrito de farmacia';
     $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_historial_ventas.php'] = 'Historial de ventas';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_pedidos.php'] = 'Pedidos';
@@ -41,7 +43,7 @@ function lux_header($titulo, $sub) {
 <div class="topbar-actions"><button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar a modo oscuro" aria-pressed="false"><span data-theme-icon aria-hidden="true">🌙</span><span data-theme-label>Modo oscuro</span></button>
 <div class="who"><span>Conectado como <b><?= h($u['nombre']) ?></b></span><div class="avatar"><?= h($ini) ?></div></div></div></div>
 <div class="content">
-<?php if ($u['rol'] === 'superadmin' && !empty($_SESSION['negocio_activo']) && in_array($actual, ['lux_ventas.php', 'lux_inventario.php', 'lux_pedidos.php', 'lux_registrar_venta.php', 'lux_historial_ventas.php'])):
+<?php if ($u['rol'] === 'superadmin' && !empty($_SESSION['negocio_activo']) && in_array($actual, ['lux_ventas.php', 'lux_inventario.php', 'lux_pedidos.php', 'lux_carrito.php', 'lux_registrar_venta.php', 'lux_historial_ventas.php'])):
   $nn = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $nn->execute([$_SESSION['negocio_activo']]); ?>
 <div class="flash">Estás dentro del sistema de <b><?= h($nn->fetchColumn()) ?></b> como Super Admin.
 <a href="lux_entrar.php?salir=1" style="text-decoration:underline">Volver al panel general</a> · <a href="lux_negocios.php" style="text-decoration:underline">Cambiar de negocio</a></div>

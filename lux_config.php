@@ -35,11 +35,41 @@ else {
     if ($versionInstalada < 5) lux_migrar_5($db);
     if ($versionInstalada < 6) lux_migrar_6($db);
     if ($versionInstalada < 7) lux_migrar_7($db);
+    if ($versionInstalada < 8) lux_migrar_8($db);
 }
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money($n) { return '$' . number_format((float)$n, 0, ',', '.'); }
 function lux_user() { return $_SESSION['user'] ?? null; }
+function lux_carritos_cargar($negocioId, $usuarioId) {
+    $estado = $_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId] ?? [];
+    if (!is_array($estado) || !is_array($estado['carts'] ?? null)) {
+        $anterior = is_array($estado) ? $estado : [];
+        $estado = ['active' => '', 'next' => 1, 'carts' => []];
+        if ($anterior) {
+            $id = bin2hex(random_bytes(8));
+            $estado['carts'][$id] = ['nombre' => 'Carrito anterior', 'items' => $anterior];
+            $estado['active'] = $id;
+            $estado['next'] = 2;
+        }
+    }
+    $estado['active'] = is_scalar($estado['active'] ?? null) ? (string)$estado['active'] : '';
+    $estado['next'] = max(1, (int)($estado['next'] ?? 1));
+    if (!isset($estado['carts'][$estado['active']])) $estado['active'] = '';
+    return $estado;
+}
+function lux_carrito_crear(&$estado, $nombre = '') {
+    do { $id = bin2hex(random_bytes(8)); } while (isset($estado['carts'][$id]));
+    $numero = (int)$estado['next'];
+    $estado['next'] = $numero + 1;
+    $nombre = trim((string)$nombre);
+    $estado['carts'][$id] = ['nombre' => $nombre !== '' ? $nombre : 'Carrito ' . $numero, 'items' => []];
+    $estado['active'] = $id;
+    return $id;
+}
+function lux_carritos_guardar($negocioId, $usuarioId, $estado) {
+    $_SESSION['lux_carritos'][(int)$negocioId][(int)$usuarioId] = $estado;
+}
 function flash($msg, $err = false) { $_SESSION['flash'] = [$msg, $err]; }
 function lux_redirect($to) { header("Location: $to"); exit; }
 function lux_home($rol) {
@@ -185,6 +215,30 @@ function lux_migrar_7($db) {
         if (!$existe) $db->exec("ALTER TABLE pedidos ADD COLUMN $col $def");
     }
     $db->exec('INSERT INTO lux_schema_version (version) VALUES (7)');
+}
+
+// Migración v8: cabecera para agrupar los productos de una misma venta
+function lux_migrar_8($db) {
+    $db->exec("CREATE TABLE IF NOT EXISTS venta_tickets (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        negocio_id INT UNSIGNED NOT NULL,
+        usuario_id INT UNSIGNED NOT NULL,
+        fecha DATETIME NOT NULL,
+        medio_pago VARCHAR(30) NOT NULL,
+        cliente_nombre VARCHAR(120) NULL,
+        detalle VARCHAR(255) NULL,
+        total DECIMAL(12,2) NOT NULL,
+        CONSTRAINT fk_venta_tickets_negocio FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE RESTRICT,
+        CONSTRAINT fk_venta_tickets_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+        INDEX idx_venta_tickets_negocio_fecha (negocio_id,fecha)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $columna = (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='ventas' AND column_name='ticket_id'")->fetchColumn();
+    if (!$columna) {
+        $db->exec('ALTER TABLE ventas ADD COLUMN ticket_id INT UNSIGNED NULL');
+        $db->exec('ALTER TABLE ventas ADD INDEX idx_ventas_ticket_id (ticket_id)');
+        $db->exec('ALTER TABLE ventas ADD CONSTRAINT fk_ventas_ticket FOREIGN KEY (ticket_id) REFERENCES venta_tickets(id) ON DELETE SET NULL');
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (8)');
 }
 
 function lux_instalar($db) {

@@ -15,7 +15,7 @@ El backend usa MySQL/MariaDB mediante PDO y conecta por defecto a `127.0.0.1:330
 
 Para importar el archivo manualmente desde phpMyAdmin, creá y seleccioná una base llamada `grupolux`, luego importá `data/grupo_lux.sql`. La cuenta de MySQL debe poder crear tablas e insertar registros; para la instalación automática también debe poder crear la base de datos.
 
-La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves foráneas e índices. El archivo `data/lux.sqlite`, si ya existe de una ejecución anterior, es una base SQLite antigua y ya no la utiliza la aplicación.
+La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves foráneas e índices. Farmacia permite mantener varios carritos independientes por usuario, identificarlos con un nombre o referencia y cobrar cada uno por separado. Cada cobro se agrupa en un ticket, guarda cliente, pago y detalle, y descuenta el stock de todos sus productos juntos. Las bases existentes reciben la tabla de tickets mediante la migración de esquema v8. El archivo `data/lux.sqlite`, si ya existe de una ejecución anterior, es una base SQLite antigua y ya no la utiliza la aplicación.
 
 ## Usuarios demo (clave `lux2026`)
 - Super Admin: admin@grupolux.com
@@ -33,7 +33,9 @@ La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves
 | lux_panel_general.php | Super Admin: KPIs y gráfico de ventas reales |
 | lux_negocios.php | Super Admin: estado de los 4 negocios |
 | lux_usuarios.php | Super Admin: gestionar usuarios; Administrador: agregar empleados a su negocio |
-| lux_ventas.php | Empleado/Admin: resumen y registrar venta (descuenta stock) |
+| lux_ventas.php | Empleado/Admin: resumen del negocio y acceso al registro de ventas |
+| lux_carrito.php | Farmacia: crear y administrar carritos independientes por comprador |
+| lux_registrar_venta.php | Selecciona un carrito de Farmacia, muestra sus productos, captura pago y registra ese ticket; los demás negocios mantienen su formulario actual |
 | lux_inventario.php | Empleado/Admin: buscar, alta de productos y reposición |
 | lux_mis_turnos.php | Cliente: compras, seguimiento de pedidos, reservar y cancelar turnos |
 | lux_explorar.php | Cliente: catálogo y pedidos de Papelería, Farmacia y ElectroLux |

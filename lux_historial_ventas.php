@@ -27,7 +27,10 @@ if ($q !== '') {
     $num = ltrim($q, '#');
     $cond = 'p.nombre LIKE ? OR v.cliente_nombre LIKE ? OR us.nombre LIKE ?';
     $par = array_merge($par, [$like, $like, $like]);
-    if (ctype_digit($num)) { $cond .= ' OR v.id=?'; $par[] = (int)$num; }
+    if (ctype_digit($num)) {
+        $cond .= ' OR v.id=?'; $par[] = (int)$num;
+        if ($nid == 2) { $cond .= ' OR v.ticket_id=?'; $par[] = (int)$num; }
+    }
     $where .= " AND ($cond)";
 }
 if ($pago !== '') { $where .= ' AND v.medio_pago=?'; $par[] = $pago; }
@@ -79,8 +82,8 @@ lux_header('Historial de ventas', ($neg ?: '—') . ' — buscá y filtrá todo 
 
 <?php if (!$lista): ?><div class="empty-state"><?= $hayFiltro ? 'No hay ventas que coincidan con la búsqueda.' : 'Todavía no hay ventas registradas.' ?></div>
 <?php else: ?>
-<div class="pedidos-tabla"><table><thead><tr><th>N°</th><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Cliente</th><th>Registró</th></tr></thead><tbody>
-<?php foreach ($lista as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
+<div class="pedidos-tabla"><table><thead><tr><th>N°</th><?php if ($nid == 2): ?><th>Venta</th><?php endif; ?><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Cliente</th><th>Registró</th></tr></thead><tbody>
+<?php foreach ($lista as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($nid == 2): ?><td><?= $x['ticket_id'] ? '#' . (int)$x['ticket_id'] : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
 <td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td></tr><?php endforeach; ?>
 </tbody></table></div>
 <?php if ($paginas > 1): ?>

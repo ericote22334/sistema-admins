@@ -397,6 +397,44 @@ a.btn-small{display:inline-block;text-decoration:none;}
 .venta-resumen{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--bg);border:1px dashed var(--border-strong);border-radius:12px;padding:12px 16px;font-size:13.5px;}
 .venta-resumen b{font-size:18px;}
 .venta-aviso{background:#FBEAE6;border:1px solid #E7B9AE;color:#8A3A28;border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:14px;}
+.farmacia-agregar{display:flex;gap:10px;align-items:flex-end;}
+.farmacia-agregar select{flex:1;min-width:0;}
+.farmacia-agregar .farmacia-cantidad{flex:0 0 110px;margin:0;}
+.farmacia-agregar .btn-small{white-space:nowrap;}
+.farmacia-carrito{grid-column:1/-1;min-width:0;}
+.farmacia-carrito h2{font-family:'Fraunces',serif;font-size:18px;font-weight:500;margin:0 0 12px;}
+.farmacia-carrito .pedidos-tabla{margin:0;}
+.farmacia-vacio{text-align:center;color:var(--text-muted);padding:18px!important;}
+.farmacia-titulo{font-family:'Fraunces',serif;font-size:18px;font-weight:500;margin:0 0 14px;}
+.farmacia-encabezado,.farmacia-acciones,.farmacia-pie{display:flex;align-items:center;justify-content:space-between;gap:14px;}
+.farmacia-encabezado{margin-bottom:14px;}
+.farmacia-encabezado .farmacia-titulo{margin:0;}
+.farmacia-cabecera-carritos{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px;}
+.farmacia-cabecera-carritos p{margin:4px 0 0;color:var(--text-muted);font-size:13px;}
+.farmacia-nuevo-carrito{display:flex;gap:8px;align-items:center;}
+.farmacia-nuevo-carrito input{min-width:220px;padding:10px 12px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;}
+.farmacia-lista-carritos{display:grid;gap:10px;margin-bottom:22px;}
+.farmacia-carrito-resumen{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+.farmacia-carrito-resumen.seleccionado{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft);}
+.farmacia-carrito-resumen>div:first-child{display:flex;flex-direction:column;gap:4px;}
+.farmacia-carrito-resumen span{font-size:12.5px;color:var(--text-muted);}
+.farmacia-carrito-botones{display:flex;gap:8px;align-items:center;}
+.farmacia-acciones{padding-top:14px;}
+.farmacia-acciones b{font-size:18px;}
+.farmacia-pie{margin-top:16px;}
+.farmacia-cobro{margin-top:18px;}
+.carrito-cantidad{width:88px;padding:7px!important;}
+.carrito-alerta{color:#A6402A;}
+
+@media (max-width:600px){
+  .farmacia-agregar{align-items:stretch;flex-wrap:wrap;}
+  .farmacia-agregar select{flex-basis:100%;}
+  .farmacia-agregar .farmacia-cantidad{flex:1;}
+  .farmacia-pie,.farmacia-acciones{align-items:flex-start;flex-direction:column;}
+  .farmacia-cabecera-carritos,.farmacia-nuevo-carrito,.farmacia-carrito-resumen{align-items:stretch;flex-direction:column;}
+  .farmacia-nuevo-carrito input{min-width:0;}
+  .farmacia-carrito-botones{justify-content:flex-start;}
+}
 
 html[data-theme="dark"]{
   color-scheme:dark;

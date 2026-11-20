@@ -41,5 +41,5 @@ lux_header('Mi negocio', ($neg['nombre'] ?? '—') . ' — resumen de hoy'); ?>
 <?php foreach ($tt as $t): ?><tr><td><?= h(date('d/m H:i', strtotime($t['fecha']))) ?></td><td><?= h($t['cliente']) ?></td><td><?= h($t['profesional']) ?></td><td><?= h($t['estado']) ?></td>
 <td><?php if ($t['estado'] === 'Pendiente'): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="accion" value="atender"><input type="hidden" name="id" value="<?= $t['id'] ?>"><button class="btn-link">Marcar atendido</button></form><?php endif; ?></td></tr><?php endforeach; ?>
 </tbody></table><?php endif; ?>
-<p style="margin-top:22px"><a class="btn-small" href="lux_registrar_venta.php">+ <?= $nid == 4 ? 'Registrar cobro' : 'Registrar venta' ?></a></p>
+<p style="margin-top:22px"><a class="btn-small" href="<?= $nid == 2 ? 'lux_carrito.php' : 'lux_registrar_venta.php' ?>">+ <?= $nid == 2 ? 'Cargar productos al carrito' : ($nid == 4 ? 'Registrar cobro' : 'Registrar venta') ?></a></p>
 <?php lux_footer();
