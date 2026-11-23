@@ -6,7 +6,7 @@ if (!$nid) lux_redirect('lux_negocios.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     if (($_POST['accion'] ?? '') === 'atender' && $nid == 4) {
-        $db->prepare("UPDATE turnos SET estado='Atendido' WHERE id=? AND negocio_id=4")->execute([$_POST['id']]);
+        $db->prepare("UPDATE turnos SET estado='Atendido' WHERE id=? AND negocio_id=4 AND estado IN ('Pendiente','Confirmado')")->execute([$_POST['id']]);
         flash('Turno marcado como atendido.'); lux_redirect('lux_ventas.php');
     }
     lux_redirect('lux_ventas.php');
@@ -36,10 +36,10 @@ lux_header('Mi negocio', ($neg['nombre'] ?? '—') . ' — resumen de hoy'); ?>
 </tbody></table>
 <?php if ($nid == 4):
   $tt = $db->query("SELECT t.*, u.nombre cliente FROM turnos t JOIN usuarios u ON u.id=t.cliente_id WHERE t.negocio_id=4 AND t.estado<>'Cancelado' ORDER BY t.fecha DESC LIMIT 15")->fetchAll(); ?>
-<div class="section-title" style="margin-top:28px"><h2>Turnos</h2></div>
+<div class="section-title" style="margin-top:28px"><h2>Turnos</h2><a class="btn-link" href="lux_calendario.php">Ver calendario →</a></div>
 <table><thead><tr><th>Fecha</th><th>Paciente</th><th>Profesional</th><th>Estado</th><th></th></tr></thead><tbody>
-<?php foreach ($tt as $t): ?><tr><td><?= h(date('d/m H:i', strtotime($t['fecha']))) ?></td><td><?= h($t['cliente']) ?></td><td><?= h($t['profesional']) ?></td><td><?= h($t['estado']) ?></td>
-<td><?php if ($t['estado'] === 'Pendiente'): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="accion" value="atender"><input type="hidden" name="id" value="<?= $t['id'] ?>"><button class="btn-link">Marcar atendido</button></form><?php endif; ?></td></tr><?php endforeach; ?>
+<?php foreach ($tt as $t): ?><tr><td><?= h(date('d/m H:i', strtotime($t['fecha']))) ?></td><td><a class="btn-link" href="lux_pacientes.php?id=<?= (int)$t['cliente_id'] ?>"><?= h($t['cliente']) ?></a></td><td><?= h($t['profesional']) ?></td><td><?= h($t['estado']) ?></td>
+<td><?php if (in_array($t['estado'], ['Pendiente', 'Confirmado'], true)): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="accion" value="atender"><input type="hidden" name="id" value="<?= $t['id'] ?>"><button class="btn-link">Marcar atendido</button></form><?php endif; ?></td></tr><?php endforeach; ?>
 </tbody></table><?php endif; ?>
 <p style="margin-top:22px"><a class="btn-small" href="<?= $nid == 2 ? 'lux_carrito.php' : 'lux_registrar_venta.php' ?>">+ <?= $nid == 2 ? 'Cargar productos al carrito' : ($nid == 4 ? 'Registrar cobro' : 'Registrar venta') ?></a></p>
 <?php lux_footer();

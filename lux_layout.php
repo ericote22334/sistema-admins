@@ -2,9 +2,11 @@
 require_once __DIR__ . '/lux_config.php';
 
 function lux_nav($rol) {
+    global $db;
     if ($rol === 'superadmin') {
         $n = ['lux_panel_general.php' => 'Panel general', 'lux_negocios.php' => 'Negocios'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_ventas.php' => '↳ Ventas / turnos', 'lux_inventario.php' => '↳ Inventario'];
+        if ((int)($_SESSION['negocio_activo'] ?? 0) === 4) $n += ['lux_calendario.php' => '↳ Calendario', 'lux_pacientes.php' => '↳ Pacientes', 'lux_medicos.php' => '↳ Médicos', 'lux_especialidades.php' => '↳ Especialidades', 'lux_auditoria_historias.php' => '↳ Auditoría de historias', 'lux_reportes.php' => '↳ Reportes'];
         if ((int)($_SESSION['negocio_activo'] ?? 0) === 2) $n += ['lux_carrito.php' => '↳ Carrito de farmacia'];
         if (!empty($_SESSION['negocio_activo'])) $n += ['lux_registrar_venta.php' => '↳ ' . ((int)$_SESSION['negocio_activo'] === 4 ? 'Registrar cobro' : 'Registrar venta')];
         if (!empty($_SESSION['negocio_activo']) && (int)$_SESSION['negocio_activo'] !== 4) $n += ['lux_historial_ventas.php' => '↳ Historial de ventas'];
@@ -13,8 +15,16 @@ function lux_nav($rol) {
     }
     if ($rol === 'cliente') return [
         'lux_mis_turnos.php' => 'Mis compras y turnos', 'lux_explorar.php' => 'Explorar negocios',
+        'lux_mis_datos.php' => 'Mis datos de paciente', 'lux_mis_recetas.php' => 'Mis recetas',
         'lux_perfil.php' => 'Mi perfil'];
     $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_calendario.php'] = 'Calendario de turnos';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_pacientes.php'] = 'Pacientes';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_medicos.php'] = 'Médicos';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_medico_autorizado($db, lux_user())) { $n['lux_consultas.php'] = 'Mis consultas del día'; $n['lux_historias.php'] = 'Historias clínicas'; $n['lux_recetas.php'] = 'Recetas'; }
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && $rol === 'admin') $n['lux_especialidades.php'] = 'Especialidades';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && $rol === 'admin') $n['lux_auditoria_historias.php'] = 'Auditoría de historias';
+    if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && $rol === 'admin') $n['lux_reportes.php'] = 'Reportes y estadísticas';
     if ((int)(lux_user()['negocio_id'] ?? 0) === 2) $n['lux_carrito.php'] = 'Carrito de farmacia';
     $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_historial_ventas.php'] = 'Historial de ventas';
@@ -43,7 +53,7 @@ function lux_header($titulo, $sub) {
 <div class="topbar-actions"><button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar a modo oscuro" aria-pressed="false"><span data-theme-icon aria-hidden="true">🌙</span><span data-theme-label>Modo oscuro</span></button>
 <div class="who"><span>Conectado como <b><?= h($u['nombre']) ?></b></span><div class="avatar"><?= h($ini) ?></div></div></div></div>
 <div class="content">
-<?php if ($u['rol'] === 'superadmin' && !empty($_SESSION['negocio_activo']) && in_array($actual, ['lux_ventas.php', 'lux_inventario.php', 'lux_pedidos.php', 'lux_carrito.php', 'lux_registrar_venta.php', 'lux_historial_ventas.php'])):
+<?php if ($u['rol'] === 'superadmin' && !empty($_SESSION['negocio_activo']) && in_array($actual, ['lux_ventas.php', 'lux_inventario.php', 'lux_pedidos.php', 'lux_carrito.php', 'lux_registrar_venta.php', 'lux_historial_ventas.php', 'lux_pacientes.php', 'lux_medicos.php', 'lux_especialidades.php', 'lux_calendario.php', 'lux_auditoria_historias.php', 'lux_reportes.php'])):
   $nn = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $nn->execute([$_SESSION['negocio_activo']]); ?>
 <div class="flash">Estás dentro del sistema de <b><?= h($nn->fetchColumn()) ?></b> como Super Admin.
 <a href="lux_entrar.php?salir=1" style="text-decoration:underline">Volver al panel general</a> · <a href="lux_negocios.php" style="text-decoration:underline">Cambiar de negocio</a></div>
@@ -73,8 +83,8 @@ function lux_alertas($db, $nid) {
     $r = ['clinica' => ((int)$nid === 4), 'items' => [], 'reponer' => 0, 'sin_stock' => 0, 'pendientes' => 0, 'vencidos' => 0, 'hoy' => 0];
     if ($r['clinica']) {
         $ahora = date('Y-m-d H:i:s');
-        $r['pendientes'] = $q("SELECT COUNT(*) FROM turnos WHERE negocio_id=? AND estado='Pendiente'", [$nid]);
-        $r['vencidos'] = $q("SELECT COUNT(*) FROM turnos WHERE negocio_id=? AND estado='Pendiente' AND fecha<?", [$nid, $ahora]);
+        $r['pendientes'] = $q("SELECT COUNT(*) FROM turnos WHERE negocio_id=? AND estado IN ('Pendiente','Confirmado')", [$nid]);
+        $r['vencidos'] = $q("SELECT COUNT(*) FROM turnos WHERE negocio_id=? AND estado IN ('Pendiente','Confirmado') AND fecha<?", [$nid, $ahora]);
         $r['hoy'] = $q("SELECT COUNT(*) FROM turnos WHERE negocio_id=? AND estado<>'Cancelado' AND fecha>=? AND fecha<?",
             [$nid, date('Y-m-d 00:00:00'), date('Y-m-d 00:00:00', strtotime('+1 day'))]);
         if ($r['vencidos']) $r['items'][] = ['rojo', $r['vencidos'] . ($r['vencidos'] == 1 ? ' turno sin atender' : ' turnos sin atender'), 'La fecha ya pasó y siguen pendientes'];
@@ -101,4 +111,25 @@ function lux_render_alertas($r) { ?>
 <div class="alert-txt"><b><?= h($it[1]) ?></b><span><?= h($it[2]) ?></span></div>
 <?php if (($it[3] ?? '') === 'ver_pedidos'): ?><a class="alert-link" href="lux_pedidos.php?estado=Pendiente">Ver pedidos →</a><?php endif; ?></div>
 <?php endforeach; ?></div>
+<?php }
+
+// Campos del formulario de la ficha del paciente (recepción y cliente); $form trae los valores actuales
+function lux_pac_campos($form) {
+    $sexos = ['Femenino', 'Masculino', 'Otro'];
+    $obras = ['Particular (sin obra social)', 'PAMI', 'IOMA', 'OSDE', 'Swiss Medical', 'Galeno', 'Medifé', 'OMINT', 'Sancor Salud', 'Unión Personal', 'OSECAC'];
+    $v = function ($k) use ($form) { return h($form[$k] ?? ''); }; ?>
+<div class="field ancho"><label>Nombre y apellido</label><input name="nombre" maxlength="150" required value="<?= $v('nombre') ?>"></div>
+<div class="field"><label>DNI</label><input name="dni" inputmode="numeric" maxlength="11" placeholder="Solo números" required value="<?= $v('dni') ?>"></div>
+<div class="field"><label>Fecha de nacimiento</label><input type="date" name="fecha_nacimiento" min="1900-01-01" max="<?= date('Y-m-d') ?>" required value="<?= $v('fecha_nacimiento') ?>"></div>
+<div class="field"><label>Sexo</label><select name="sexo" required><option value="" disabled <?= ($form['sexo'] ?? '') === '' ? 'selected' : '' ?>>Elegí una opción</option>
+<?php foreach ($sexos as $s): ?><option value="<?= h($s) ?>" <?= ($form['sexo'] ?? '') === $s ? 'selected' : '' ?>><?= h($s) ?></option><?php endforeach; ?></select></div>
+<div class="field"><label>Teléfono</label><input type="tel" name="telefono" maxlength="30" required value="<?= $v('telefono') ?>"></div>
+<div class="field ancho"><label>Dirección</label><input name="direccion" maxlength="255" placeholder="Calle, número, localidad" value="<?= $v('direccion') ?>"></div>
+<div class="field"><label>Obra social</label><input name="obra_social" list="lux-obras" maxlength="100" value="<?= $v('obra_social') ?>">
+<datalist id="lux-obras"><?php foreach ($obras as $o): ?><option value="<?= h($o) ?>"><?php endforeach; ?></datalist></div>
+<div class="field"><label>Número de afiliado</label><input name="numero_afiliado" maxlength="60" value="<?= $v('numero_afiliado') ?>"></div>
+<div class="field ancho"><h3 style="margin:10px 0 0;font-size:14px;font-family:'Inter',sans-serif">Contacto de emergencia</h3></div>
+<div class="field"><label>Nombre</label><input name="ce_nombre" maxlength="150" value="<?= $v('ce_nombre') ?>"></div>
+<div class="field"><label>Teléfono</label><input type="tel" name="ce_telefono" maxlength="30" value="<?= $v('ce_telefono') ?>"></div>
+<div class="field"><label>Relación</label><input name="ce_relacion" maxlength="50" placeholder="Madre, esposo, amiga…" value="<?= $v('ce_relacion') ?>"></div>
 <?php }

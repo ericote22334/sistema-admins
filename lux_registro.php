@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'estado' => 'Activo',
                 'puesto' => null,
             ];
-            lux_redirect(lux_home('cliente'));
+            lux_redirect('lux_mis_datos.php');
         } catch (PDOException $e) {
             if (($e->errorInfo[1] ?? null) === 1062) $err = 'Ese email ya está registrado. Probá iniciar sesión.';
             else throw $e;

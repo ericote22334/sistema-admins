@@ -471,3 +471,86 @@ html[data-theme="dark"] .venta-aviso{background:#3B2725;border-color:#87564D;col
 .hist-filtros label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-muted);}
 .hist-filtros input[type=date]{width:auto;padding:9px 10px;}
 .hist-pag{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:18px;font-size:13px;color:var(--text-muted);}
+
+/* Médicos: días y horarios de atención */
+.dia-fila{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.dia-fila label{display:flex;align-items:center;gap:8px;margin:0;min-width:120px;font-size:13.5px;color:var(--text);}
+.dia-fila input[type=checkbox]{width:auto;padding:0;}
+.dia-fila input[type=time]{width:auto;flex:0 0 130px;}
+.dia-fila span{font-size:13px;color:var(--text-muted);}
+.dia-chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--teal);color:var(--teal);margin:0 4px 4px 0;}
+.dia-chip.off{border-color:var(--border-strong);color:var(--text-muted);opacity:.6;}
+
+/* Calendario de turnos */
+.status-pill.pendiente{color:#B07A12;border-color:#B07A12;}
+.status-pill.confirmado{color:var(--green);border-color:var(--green);}
+.cal-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:22px 0 16px;}
+.cal-bar form{display:flex;gap:8px;align-items:center;margin:0;}
+.cal-bar select{background:var(--surface);color:var(--text);border:1px solid var(--border-strong);padding:9px 12px;border-radius:var(--radius);font-size:13.5px;max-width:260px;}
+.cal-tabs{display:flex;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}
+.cal-tabs a{padding:8px 14px;font-size:13px;font-weight:600;color:var(--text-muted);text-decoration:none;}
+.cal-tabs a.on{background:var(--accent);color:#fff;}
+.cal-nav{display:flex;gap:6px;align-items:center;}
+.cal-nav a{border:1px solid var(--border-strong);border-radius:var(--radius);padding:7px 12px;font-size:13px;font-weight:600;color:var(--text);text-decoration:none;background:var(--surface);}
+.cal-titulo{font-family:'Fraunces',serif;font-size:21px;margin:0 0 14px;}
+.cal-semana{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;}
+.cal-col,.cal-celda{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;}
+.cal-col{min-height:160px;}
+.cal-celda{min-height:104px;padding:6px;}
+.cal-col.hoy,.cal-celda.hoy{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+.cal-celda.otro{opacity:.45;}
+.cal-col h4{margin:0 0 8px;font-size:12.5px;font-weight:700;}
+.cal-col h4 a,.cal-num{color:var(--text);text-decoration:none;}
+.cal-num{display:block;font-size:12.5px;font-weight:700;margin-bottom:4px;}
+.cal-mes{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;}
+.cal-cab{font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;padding:4px 0;}
+.cal-item{display:block;font-size:12px;padding:4px 6px;margin-bottom:4px;border-left:3px solid var(--text-muted);background:var(--bg);color:var(--text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px;}
+.cal-item.est-pendiente{border-left-color:#C98A1B;}
+.cal-item.est-confirmado{border-left-color:var(--green);}
+.cal-item.est-atendido{opacity:.65;}
+.cal-mas{font-size:11.5px;color:var(--accent);text-decoration:none;font-weight:600;}
+.cal-bloq{font-size:11px;color:#A6402A;margin-bottom:4px;}
+.cal-libre{color:var(--text-muted);font-style:italic;}
+.cal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-top:22px;}
+.cal-box h3{margin:0 0 10px;font-size:15px;font-family:'Inter',sans-serif;}
+html[data-theme="dark"] .cal-bloq{color:#FF9D8B;}
+@media (max-width:880px){.cal-semana{grid-template-columns:1fr;}.cal-celda{min-height:72px;}.cal-col{min-height:0;}}
+
+/* Historias clínicas */
+.venta-form textarea{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius);padding:10px 12px;font:inherit;font-size:14px;line-height:1.5;resize:vertical;min-height:96px;box-sizing:border-box;}
+.hc-resumen{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:14px;}
+.hc-resumen .hc-links{margin-left:auto;display:flex;gap:14px;}
+.hc-alerta{background:#FBEAE6;border:1px solid #E7B9AE;color:#8A3A28;border-radius:12px;padding:14px 18px;margin-bottom:18px;font-size:14px;}
+.hc-alerta b{display:block;margin-bottom:4px;}
+.hc-ok{border:1px dashed var(--border-strong);border-radius:12px;padding:12px 18px;margin-bottom:18px;font-size:13.5px;color:var(--text-muted);}
+.hc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+.hc-card h3{margin:0 0 12px;font-size:15px;font-family:'Inter',sans-serif;}
+.hc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;}
+.hc-bloque h4{margin:0 0 6px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);}
+.hc-texto{font-size:14px;line-height:1.55;white-space:normal;word-break:break-word;}
+.hc-vacio{color:var(--text-muted);font-style:italic;}
+.hc-meta{font-size:12.5px;color:var(--text-muted);margin-top:12px;}
+.hc-consulta{border-left:3px solid var(--accent);}
+.hc-consulta .hc-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-bottom:10px;font-size:13px;color:var(--text-muted);}
+.hc-consulta .hc-cab b{color:var(--text);font-size:14px;}
+.hc-consulta .hc-bloque{margin-bottom:10px;}
+.hc-aviso-conf{font-size:12.5px;color:var(--text-muted);margin-top:22px;}
+html[data-theme="dark"] .hc-alerta{background:#3A2320;border-color:#7A3F33;color:#FFB4A6;}
+@media (max-width:880px){.hc-grid{grid-template-columns:1fr;}.hc-resumen .hc-links{margin-left:0;}}
+
+/* Recetas médicas */
+.rx-item{display:grid;grid-template-columns:2fr 1.2fr 1.2fr 1fr 1.6fr;gap:8px;margin-bottom:8px;}
+.rx-item input{width:100%;box-sizing:border-box;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius);padding:9px 10px;font-size:13.5px;}
+.rx-cab{font-size:12px;font-weight:600;color:var(--text-muted);}
+@media (max-width:880px){.rx-item{grid-template-columns:1fr;padding-bottom:10px;border-bottom:1px solid var(--border);}.rx-cab{display:none;}}
+
+/* Reportes */
+.rep-atajos{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-6px 0 18px;font-size:13px;}
+.rep-dos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;margin-top:26px;}
+.rep-barras{display:flex;flex-direction:column;gap:7px;margin-top:6px;}
+.rep-fila{display:grid;grid-template-columns:minmax(90px,38%) 1fr auto;gap:10px;align-items:center;font-size:13px;}
+.rep-et{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+.rep-bar{display:block;height:10px;background:var(--border);border-radius:5px;overflow:hidden;}
+.rep-bar i{display:block;height:100%;background:var(--accent);border-radius:5px;}
+.rep-val{font-variant-numeric:tabular-nums;color:var(--text-muted);min-width:44px;text-align:right;}
+@media (max-width:980px){.rep-dos{grid-template-columns:1fr;}.kpi-row[style*="repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}}
