@@ -220,9 +220,16 @@ function lux_puede_vender($u) {
         1 => ['Encargado del local', 'Vendedor / Atención al cliente', 'Cajero'],
         2 => ['Farmacéutico', 'Auxiliar de farmacia', 'Cajero', 'Vendedor'],
         3 => ['Gerente', 'Vendedor', 'Cajero'],
-        4 => ['Médico', 'Recepcionista', 'Secretario/a administrativo/a'],
+        4 => ['Recepcionista', 'Secretario/a administrativo/a'], // el cobro del consultorio lo registra recepción; los médicos no
     ];
     return in_array($p, $venden[(int)($u['negocio_id'] ?? 0)] ?? [], true);
+}
+// Quién puede modificar turnos en el calendario del Consultorio (los médicos solo los propios; lo resuelve el calendario)
+function lux_puede_agenda($u) {
+    if (in_array($u['rol'] ?? '', ['superadmin', 'admin'], true)) return true;
+    $p = $u['puesto'] ?? '';
+    if ($p === '') return true;
+    return in_array($p, ['Médico', 'Recepcionista', 'Secretario/a administrativo/a'], true);
 }
 
 // Acceso a las fichas de pacientes (Consultorio): todo el personal salvo limpieza; el Super Admin y el administrador siempre

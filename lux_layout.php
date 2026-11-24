@@ -26,7 +26,7 @@ function lux_nav($rol) {
     if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && $rol === 'admin') $n['lux_auditoria_historias.php'] = 'Auditoría de historias';
     if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && $rol === 'admin') $n['lux_reportes.php'] = 'Reportes y estadísticas';
     if ((int)(lux_user()['negocio_id'] ?? 0) === 2) $n['lux_carrito.php'] = 'Carrito de farmacia';
-    $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
+    if ((int)(lux_user()['negocio_id'] ?? 0) !== 4 || lux_puede_vender(lux_user())) $n['lux_registrar_venta.php'] = (int)(lux_user()['negocio_id'] ?? 0) === 4 ? 'Registrar cobro' : 'Registrar venta';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_historial_ventas.php'] = 'Historial de ventas';
     if ((int)(lux_user()['negocio_id'] ?? 0) !== 4) $n['lux_pedidos.php'] = 'Pedidos';
     if ($rol === 'admin') $n['lux_usuarios.php'] = 'Empleados';
@@ -90,7 +90,8 @@ function lux_alertas($db, $nid) {
         if ($r['vencidos']) $r['items'][] = ['rojo', $r['vencidos'] . ($r['vencidos'] == 1 ? ' turno sin atender' : ' turnos sin atender'), 'La fecha ya pasó y siguen pendientes'];
         if ($r['hoy']) $r['items'][] = ['amarillo', $r['hoy'] . ($r['hoy'] == 1 ? ' turno hoy' : ' turnos hoy'), 'Programados para el día de hoy'];
         $porCobrar = $q("SELECT COUNT(*) FROM consultas_clinicas WHERE estado='Finalizada' AND cobro='Pendiente'");
-        if ($porCobrar) $r['items'][] = ['rojo', $porCobrar . ($porCobrar == 1 ? ' consulta por cobrar' : ' consultas por cobrar'), 'Finalizadas y todavía sin cobro registrado'];
+        $uAl = lux_user() ?: [];
+        if ($porCobrar && lux_puede_vender(['rol' => $uAl['rol'] ?? '', 'puesto' => $uAl['puesto'] ?? null, 'negocio_id' => $nid])) $r['items'][] = ['rojo', $porCobrar . ($porCobrar == 1 ? ' consulta por cobrar' : ' consultas por cobrar'), 'Finalizadas y todavía sin cobro registrado'];
         if ($r['pendientes']) $r['items'][] = ['caja', $r['pendientes'] . ($r['pendientes'] == 1 ? ' turno pendiente' : ' turnos pendientes'), 'Esperando atención'];
         return $r;
     }

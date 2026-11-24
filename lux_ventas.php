@@ -41,5 +41,5 @@ lux_header('Mi negocio', ($neg['nombre'] ?? '—') . ' — resumen de hoy'); ?>
 <?php foreach ($tt as $t): ?><tr><td><?= h(date('d/m H:i', strtotime($t['fecha']))) ?></td><td><a class="btn-link" href="lux_pacientes.php?id=<?= (int)$t['cliente_id'] ?>"><?= h($t['cliente']) ?></a></td><td><?= h($t['profesional']) ?></td><td><?= h($t['estado']) ?></td>
 <td><?php if (in_array($t['estado'], ['Pendiente', 'Confirmado'], true)): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="accion" value="atender"><input type="hidden" name="id" value="<?= $t['id'] ?>"><button class="btn-link">Marcar atendido</button></form><?php endif; ?></td></tr><?php endforeach; ?>
 </tbody></table><?php endif; ?>
-<p style="margin-top:22px"><a class="btn-small" href="<?= $nid == 2 ? 'lux_carrito.php' : 'lux_registrar_venta.php' ?>">+ <?= $nid == 2 ? 'Cargar productos al carrito' : ($nid == 4 ? 'Registrar cobro' : 'Registrar venta') ?></a></p>
+<?php $puedeCobrar = $nid != 4 || lux_puede_vender(['rol' => $u['rol'], 'puesto' => $u['puesto'] ?? null, 'negocio_id' => $nid]); if ($puedeCobrar): ?><p style="margin-top:22px"><a class="btn-small" href="<?= $nid == 2 ? 'lux_carrito.php' : 'lux_registrar_venta.php' ?>">+ <?= $nid == 2 ? 'Cargar productos al carrito' : ($nid == 4 ? 'Registrar cobro' : 'Registrar venta') ?></a></p><?php endif; ?>
 <?php lux_footer();

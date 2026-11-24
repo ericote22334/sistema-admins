@@ -12,7 +12,12 @@ if (!lux_puede_pacientes($u)) { flash('Tu puesto no tiene acceso al calendario d
 $fr = $db->prepare('SELECT rol, puesto FROM usuarios WHERE id=?'); $fr->execute([$u['id']]); $fr = $fr->fetch() ?: [];
 $gestor = in_array($fr['rol'] ?? $u['rol'], ['superadmin', 'admin'], true);
 $medAut = lux_medico_autorizado($db, $u);
-$puedeEditar = lux_puede_vender(['rol' => $fr['rol'] ?? $u['rol'], 'puesto' => $fr['puesto'] ?? null, 'negocio_id' => $nid]);
+$puedeEditar = lux_puede_agenda(['rol' => $fr['rol'] ?? $u['rol'], 'puesto' => $fr['puesto'] ?? null, 'negocio_id' => $nid]);
+// Un médico maneja solo su propia agenda y no puede pasar turnos a otro médico: eso lo hacen el administrador y recepción
+$fijarMedico = $medAut && !$gestor;
+$miMedicoId = $fijarMedico ? (int)$medAut['id'] : 0;
+$soloPropios = $miMedicoId ? ' AND medico_id=' . $miMedicoId : '';
+$puedeSobre = function ($t) use ($puedeEditar, $miMedicoId) { return $puedeEditar && (!$miMedicoId || (int)$t['medico_id'] === $miMedicoId); };
 
 $MESES = [1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril', 5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto', 9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre'];
 $DIAS = lux_dias_semana();
@@ -58,13 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($a === 'confirmar' || $a === 'cancelar' || $a === 'atender') {
         $nuevo = ['confirmar' => 'Confirmado', 'cancelar' => 'Cancelado', 'atender' => 'Atendido'][$a];
         $desde = $a === 'confirmar' ? "estado='Pendiente'" : "estado IN $VIGENTES";
-        $s = $db->prepare("UPDATE turnos SET estado=? WHERE id=? AND negocio_id=4 AND $desde");
+        $s = $db->prepare("UPDATE turnos SET estado=? WHERE id=? AND negocio_id=4 AND $desde$soloPropios");
         $s->execute([$nuevo, $id]);
         $msgs = ['confirmar' => 'Turno confirmado.', 'cancelar' => 'Turno cancelado.', 'atender' => 'Turno marcado como atendido.'];
         if ($s->rowCount()) flash($msgs[$a]); else flash('El turno ya no admite ese cambio.', true);
     } elseif ($a === 'reprogramar' || $a === 'agendar') {
         $f = strtotime((string)($_POST['fecha'] ?? ''));
-        $mid = (int)($_POST['medico_id'] ?? 0);
+        $mid = $miMedicoId ?: (int)($_POST['medico_id'] ?? 0);
         $pid = (int)($_POST['paciente_id'] ?? 0);
         $volverErr = lux_cal_url($vp, $fp, $mp, $a === 'agendar' ? ['nuevo' => 1] : ['editar' => $id]);
         $volver = $volverErr; $ok = false;
@@ -77,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = '';
             if (!$m) $msg = 'Elegí un médico.';
             elseif ($a === 'reprogramar') {
-                $t = $db->prepare("SELECT id, cliente_id FROM turnos WHERE id=? AND negocio_id=4 AND estado IN $VIGENTES FOR UPDATE");
+                $t = $db->prepare("SELECT id, cliente_id FROM turnos WHERE id=? AND negocio_id=4 AND estado IN $VIGENTES$soloPropios FOR UPDATE");
                 $t->execute([$id]); $t = $t->fetch();
-                if (!$t) $msg = 'El turno ya no se puede reprogramar (fue atendido o cancelado).';
+                if (!$t) $msg = 'El turno ya no se puede reprogramar (fue atendido, cancelado o no es de tu agenda).';
                 else {
                     $msg = lux_medico_disponible($db, $m, $f, $id, $t['cliente_id']);
                     if ($msg === '') {
@@ -172,7 +177,7 @@ $k = $k->fetch();
 $editar = (int)($_GET['editar'] ?? 0);
 $turnoEd = null;
 if ($editar && $puedeEditar) {
-    $te = $db->prepare("SELECT t.id, t.fecha, t.medico_id, t.estado, u.nombre paciente FROM turnos t JOIN usuarios u ON u.id=t.cliente_id WHERE t.id=? AND t.negocio_id=4 AND t.estado IN $VIGENTES");
+    $te = $db->prepare("SELECT t.id, t.fecha, t.medico_id, t.estado, u.nombre paciente FROM turnos t JOIN usuarios u ON u.id=t.cliente_id WHERE t.id=? AND t.negocio_id=4 AND t.estado IN $VIGENTES$soloPropios");
     $te->execute([$editar]); $turnoEd = $te->fetch() ?: null;
 }
 $nuevoParam = $_GET['nuevo'] ?? '';
@@ -212,8 +217,10 @@ lux_header('Calendario de turnos', 'Agenda del Consultorio Lux Salud');
 <input type="hidden" name="accion" value="reprogramar"><input type="hidden" name="id" value="<?= (int)$turnoEd['id'] ?>">
 <div class="field ancho"><h3 style="margin:0;font-size:15px;font-family:'Inter',sans-serif">Reprogramar turno de <?= h($turnoEd['paciente']) ?></h3>
 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Actual: <?= h(date('d/m/Y H:i', strtotime($turnoEd['fecha']))) ?> hs · <?= h($turnoEd['estado']) ?></div></div>
-<div class="field"><label>Médico</label><select name="medico_id" required>
+<?php if ($fijarMedico): ?><div class="field"><label>Médico</label><div style="padding:10px 0;font-size:14px"><?= h($medAut['nombre']) ?> <span style="color:var(--text-muted)">(tu agenda)</span></div><input type="hidden" name="medico_id" value="<?= $miMedicoId ?>"></div>
+<?php else: ?><div class="field"><label>Médico</label><select name="medico_id" required>
 <?php foreach ($activos as $m): ?><option value="<?= (int)$m['id'] ?>" <?= (int)$turnoEd['medico_id'] === (int)$m['id'] ? 'selected' : '' ?>><?= h($m['nombre'] . ' — ' . $m['esp']) ?></option><?php endforeach; ?></select></div>
+<?php endif; ?>
 <div class="field"><label>Nueva fecha y hora</label><input type="datetime-local" name="fecha" required min="<?= date('Y-m-d\TH:i') ?>" value="<?= h(date('Y-m-d\TH:i', strtotime($turnoEd['fecha']))) ?>"></div>
 <div class="field ancho acciones"><button class="btn-small">Guardar cambios</button><a class="btn-link" href="<?= h(lux_cal_url($vista, $fecha, $medicoSel)) ?>">Cancelar</a></div>
 </form></div>
@@ -224,8 +231,10 @@ lux_header('Calendario de turnos', 'Agenda del Consultorio Lux Salud');
 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">El turno queda confirmado. El paciente debe tener su ficha completa.</div></div>
 <div class="field ancho"><label>Paciente</label><select name="paciente_id" required><option value="" disabled selected>Elegí un paciente</option>
 <?php foreach ($pacientes as $p): ?><option value="<?= (int)$p['id'] ?>"><?= h($p['nombre'] . ' — DNI ' . number_format((int)$p['dni'], 0, ',', '.')) ?></option><?php endforeach; ?></select></div>
-<div class="field"><label>Médico</label><select name="medico_id" required><option value="" disabled <?= $medicoSel ? '' : 'selected' ?>>Elegí un médico</option>
+<?php if ($fijarMedico): ?><div class="field"><label>Médico</label><div style="padding:10px 0;font-size:14px"><?= h($medAut['nombre']) ?> <span style="color:var(--text-muted)">(tu agenda)</span></div><input type="hidden" name="medico_id" value="<?= $miMedicoId ?>"></div>
+<?php else: ?><div class="field"><label>Médico</label><select name="medico_id" required><option value="" disabled <?= $medicoSel ? '' : 'selected' ?>>Elegí un médico</option>
 <?php foreach ($activos as $m): ?><option value="<?= (int)$m['id'] ?>" <?= $medicoSel === (int)$m['id'] ? 'selected' : '' ?>><?= h($m['nombre'] . ' — ' . $m['esp']) ?></option><?php endforeach; ?></select></div>
+<?php endif; ?>
 <div class="field"><label>Fecha y hora</label><input type="datetime-local" name="fecha" required min="<?= date('Y-m-d\TH:i') ?>" value="<?= h($prefill) ?>"></div>
 <div class="field ancho acciones"><button class="btn-small">Agendar turno</button><a class="btn-link" href="<?= h(lux_cal_url($vista, $fecha, $medicoSel)) ?>">Cancelar</a></div>
 </form></div>
@@ -275,7 +284,7 @@ lux_header('Calendario de turnos', 'Agenda del Consultorio Lux Salud');
 <?php if ((int)$t['medico_id'] === (int)$medAut['id'] && in_array($t['estado'], ['Pendiente', 'Confirmado'], true)): ?><form method="post" action="lux_consultas.php" class="inline"><?= csrf_field() ?><input type="hidden" name="accion" value="iniciar"><input type="hidden" name="paciente_id" value="<?= (int)$t['cliente_id'] ?>"><input type="hidden" name="turno_id" value="<?= (int)$t['id'] ?>"><button class="btn-small">Atender</button></form><?php endif; ?>
 <a class="btn-link" href="lux_historias.php?id=<?= (int)$t['cliente_id'] ?>">Historia clínica</a>
 <?php endif; ?>
-<?php if ($puedeEditar && in_array($t['estado'], ['Pendiente', 'Confirmado'], true)): ?>
+<?php if ($puedeSobre($t) && in_array($t['estado'], ['Pendiente', 'Confirmado'], true)): ?>
 <?php if ($t['estado'] === 'Pendiente') echo $accion('confirmar', $t['id'], 'Confirmar', 'btn-small'); ?>
 <a class="btn-edit" href="<?= h(lux_cal_url($vista, $fecha, $medicoSel, ['editar' => $t['id']])) ?>">Reprogramar</a>
 <?= $accion('atender', $t['id'], 'Atendido', 'btn-link') ?>
@@ -283,7 +292,7 @@ lux_header('Calendario de turnos', 'Agenda del Consultorio Lux Salud');
 <?php endif; ?></div></td>
 <?php else: ?>
 <td><b><?= h($f['hora']) ?></b></td><td class="cal-libre" colspan="3">Libre</td>
-<td><?php if ($puedeEditar && strtotime($fecha . ' ' . $f['hora']) > time()): ?><a class="btn-edit" href="<?= h(lux_cal_url('dia', $fecha, $medicoSel, ['nuevo' => $fecha . 'T' . $f['hora']])) ?>">Agendar</a><?php endif; ?></td>
+<td><?php if ($puedeEditar && (!$miMedicoId || $medicoSel === $miMedicoId) && strtotime($fecha . ' ' . $f['hora']) > time()): ?><a class="btn-edit" href="<?= h(lux_cal_url('dia', $fecha, $medicoSel, ['nuevo' => $fecha . 'T' . $f['hora']])) ?>">Agendar</a><?php endif; ?></td>
 <?php endif; ?>
 </tr><?php endforeach; ?>
 </tbody></table></div>

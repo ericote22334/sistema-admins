@@ -31,6 +31,7 @@ if ($farmacia && $carritoId) {
 // Se consulta el rol y el puesto actuales en la base (la sesión puede estar desactualizada tras un cambio de puesto)
 $fr = $db->prepare('SELECT rol, puesto FROM usuarios WHERE id=?'); $fr->execute([$u['id']]); $fr = $fr->fetch() ?: [];
 $puede = lux_puede_vender(['rol' => $fr['rol'] ?? $u['rol'], 'puesto' => $fr['puesto'] ?? null, 'negocio_id' => $u['negocio_id'] ?? null]);
+if ($clinica && !$puede) { flash('El cobro de las consultas lo registra recepción.', true); lux_redirect(lux_home($u['rol'])); }
 $pagos = ['Efectivo', 'Tarjeta de débito', 'Tarjeta de crédito', 'Transferencia'];
 if ($nid == 2 || $nid == 4) $pagos[] = 'Obra social';
 $entregas = ['Retira en el local', 'Envío a domicilio'];
