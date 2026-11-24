@@ -42,7 +42,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $extraRaw = $_POST['extra'] ?? '';
     $datosInvalidos = !is_scalar($clienteRaw) || !is_scalar($extraRaw);
     $cliente = is_scalar($clienteRaw) ? trim((string)$clienteRaw) : '';
-    if ($farmacia) {
+    if ($clinica && ($_POST['accion'] ?? '') === 'sin_cargo') {
+        $cid = (int)($_POST['consulta_id'] ?? 0);
+        $up = $db->prepare("UPDATE consultas_clinicas SET cobro='Sin cargo' WHERE id=? AND estado='Finalizada' AND cobro='Pendiente'");
+        $up->execute([$cid]);
+        if ($up->rowCount()) flash('Consulta marcada sin cargo.'); else flash('Esa consulta ya no está pendiente de cobro.', true);
+    } elseif ($clinica && ($_POST['accion'] ?? '') === 'cobrar_consulta') {
+        $cid = (int)($_POST['consulta_id'] ?? 0); $prodId = (int)($_POST['producto_id'] ?? 0);
+        $extraTxt = is_scalar($extraRaw) ? trim((string)$extraRaw) : '';
+        if ($pago === '' || $datosInvalidos || mb_strlen($extraTxt) > 100) flash('Revisá el medio de pago y la obra social o plan.', true);
+        else {
+            $db->beginTransaction();
+            $cs = $db->prepare("SELECT c.id, c.fecha, u.nombre paciente, mu.nombre medico FROM consultas_clinicas c JOIN usuarios u ON u.id=c.usuario_id
+                JOIN medicos m ON m.id=c.medico_id JOIN usuarios mu ON mu.id=m.usuario_id WHERE c.id=? AND c.estado='Finalizada' AND c.cobro='Pendiente' FOR UPDATE");
+            $cs->execute([$cid]); $cons = $cs->fetch();
+            $ps = $db->prepare('SELECT id, nombre, precio, stock FROM productos WHERE id=? AND negocio_id=? FOR UPDATE');
+            $ps->execute([$prodId, $nid]); $prod = $ps->fetch();
+            $errC = !$cons ? 'Esa consulta ya se cobró o no está pendiente.' : (!$prod ? 'Elegí la prestación a cobrar.' : ((int)$prod['stock'] < 1 ? "Sin stock de {$prod['nombre']}." : ''));
+            if ($errC !== '') { $db->rollBack(); flash($errC, true); }
+            else {
+                $detalle = 'Consulta del ' . date('d/m/Y', strtotime($cons['fecha'])) . ' — ' . $cons['medico'] . ($extraTxt !== '' ? ' · Obra social: ' . $extraTxt : '');
+                $db->prepare('UPDATE productos SET stock=stock-1 WHERE id=? AND negocio_id=?')->execute([$prod['id'], $nid]);
+                $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cantidad,total,fecha,medio_pago,cliente_nombre,detalle,consulta_id) VALUES(?,?,?,?,?,?,?,?,?,?)')
+                   ->execute([$nid, $prod['id'], $u['id'], 1, (float)$prod['precio'], date('Y-m-d H:i:s'), $pago, $cons['paciente'], $detalle, $cons['id']]);
+                $db->prepare("UPDATE consultas_clinicas SET cobro='Cobrada' WHERE id=?")->execute([$cons['id']]);
+                $db->commit();
+                flash('Cobro registrado: ' . $prod['nombre'] . ' de ' . $cons['paciente'] . ' — ' . money($prod['precio']) . " ($pago).");
+            }
+        }
+    } elseif ($farmacia) {
         if (!$carritoId) {
             flash('Elegí qué carrito querés cobrar.', true);
             lux_redirect('lux_carrito.php');
@@ -132,6 +160,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     lux_redirect($destino);
 }
 $neg = $db->prepare('SELECT nombre FROM negocios WHERE id=?'); $neg->execute([$nid]); $neg = $neg->fetchColumn();
+// Consultorio: consultas finalizadas que todavía no se cobraron
+$pendientes = []; $cobrarC = null;
+if ($clinica && $puede) {
+    $pq = $db->query("SELECT c.id, c.fecha, u.nombre paciente, mu.nombre medico, e.nombre esp, p.obra_social, p.numero_afiliado FROM consultas_clinicas c
+        JOIN usuarios u ON u.id=c.usuario_id JOIN medicos m ON m.id=c.medico_id JOIN usuarios mu ON mu.id=m.usuario_id JOIN especialidades e ON e.id=m.especialidad_id
+        LEFT JOIN pacientes p ON p.usuario_id=u.id WHERE c.estado='Finalizada' AND c.cobro='Pendiente' ORDER BY c.fecha, c.id LIMIT 50");
+    $pendientes = $pq->fetchAll();
+    $cidSel = (int)($_GET['consulta'] ?? 0);
+    foreach ($pendientes as $pc) if ((int)$pc['id'] === $cidSel) $cobrarC = $pc;
+}
 $ps = $db->prepare('SELECT id, nombre, precio, stock FROM productos WHERE negocio_id=? ORDER BY nombre'); $ps->execute([$nid]); $prods = $ps->fetchAll();
 $mapaNombres = [];
 foreach ($prods as $p) {
@@ -193,6 +231,36 @@ if ($farmacia): ?>
 <?php endif; ?>
 </div>
 <?php else: ?>
+<?php if ($clinica && $puede): ?>
+<div class="section-title"><h2>Consultas por cobrar</h2></div>
+<?php if ($cobrarC): ?>
+<div class="venta-card"><form method="post" class="venta-form" autocomplete="off"><?= csrf_field() ?><input type="hidden" name="accion" value="cobrar_consulta"><input type="hidden" name="consulta_id" value="<?= (int)$cobrarC['id'] ?>">
+<div class="field ancho"><h3 style="margin:0;font-size:15px;font-family:'Inter',sans-serif">Cobrar la consulta de <?= h($cobrarC['paciente']) ?></h3>
+<div style="font-size:13px;color:var(--text-muted);margin-top:4px"><?= h(date('d/m/Y H:i', strtotime($cobrarC['fecha']))) ?> hs · <?= h($cobrarC['medico']) ?> · <?= h($cobrarC['esp']) ?></div></div>
+<div class="field"><label>Prestación</label><select name="producto_id" id="cc-prod" required>
+<?php foreach ($prods as $p): ?><option value="<?= (int)$p['id'] ?>" data-precio="<?= h((string)(float)$p['precio']) ?>" <?= $p['nombre'] === 'Consulta clínica' ? 'selected' : '' ?>><?= h($p['nombre'] . ' — ' . money($p['precio'])) ?></option><?php endforeach; ?></select></div>
+<div class="field"><label>Medio de pago</label><select name="pago" required><?php foreach ($pagos as $pg): ?><option <?= $cobrarC['obra_social'] && $pg === 'Obra social' ? 'selected' : '' ?>><?= h($pg) ?></option><?php endforeach; ?></select></div>
+<div class="field"><label>Obra social / plan (opcional)</label><input type="text" name="extra" maxlength="100" value="<?= h(trim(($cobrarC['obra_social'] ?? '') . ($cobrarC['numero_afiliado'] ? ' · ' . $cobrarC['numero_afiliado'] : ''))) ?>"></div>
+<div class="venta-resumen"><span>Se registra como cobro del paciente, a nombre de <?= h($cobrarC['paciente']) ?></span><span>Total: <b id="cc-total">$0</b></span></div>
+<div class="field ancho acciones"><button class="btn-small">Registrar cobro</button><a class="btn-link" href="lux_registrar_venta.php">Cancelar</a></div>
+</form></div>
+<script>
+(function () {
+  var s = document.getElementById('cc-prod'), t = document.getElementById('cc-total');
+  function act() { var o = s.options[s.selectedIndex]; t.textContent = '$' + (parseFloat(o.getAttribute('data-precio')) || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }); }
+  s.addEventListener('change', act); act();
+})();
+</script>
+<?php endif; ?>
+<?php if (!$pendientes): ?><div class="empty-state">No hay consultas finalizadas pendientes de cobro.</div>
+<?php else: ?><div class="pedidos-tabla"><table><thead><tr><th>Consulta</th><th>Paciente</th><th>Médico</th><th>Obra social</th><th>Acciones</th></tr></thead><tbody>
+<?php foreach ($pendientes as $pc): ?><tr><td><?= h(date('d/m/Y H:i', strtotime($pc['fecha']))) ?> hs</td><td><?= h($pc['paciente']) ?></td>
+<td><?= h($pc['medico']) ?><div style="font-size:12px;color:var(--text-muted)"><?= h($pc['esp']) ?></div></td><td><?= h($pc['obra_social'] ?: '—') ?></td>
+<td><div class="acciones"><a class="btn-small" href="lux_registrar_venta.php?consulta=<?= (int)$pc['id'] ?>">Cobrar</a>
+<form method="post" class="inline" onsubmit="return confirm('¿Marcar esta consulta como sin cargo?');"><?= csrf_field() ?><input type="hidden" name="accion" value="sin_cargo"><input type="hidden" name="consulta_id" value="<?= (int)$pc['id'] ?>"><button class="btn-link">Sin cargo</button></form></div></td></tr><?php endforeach; ?>
+</tbody></table></div><?php endif; ?>
+<div class="section-title" style="margin-top:28px"><h2>Cobro de otra prestación</h2></div>
+<?php endif; ?>
 <?php if (!$puede): ?>
 <div class="venta-aviso">Tu puesto (<?= h($fr['puesto'] ?? '') ?>) no registra ventas en este negocio. Si te corresponde hacerlo, pedile al administrador que revise tu puesto.</div>
 <?php else: ?>

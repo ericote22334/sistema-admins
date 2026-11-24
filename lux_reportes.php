@@ -78,6 +78,7 @@ $st->execute([$ini, $fin]); $porPago = $st->fetchAll();
 $st = $db->prepare('SELECT COUNT(DISTINCT COALESCE(ticket_id, id)) FROM ventas WHERE negocio_id=4 AND fecha>=? AND fecha<?');
 $st->execute([$ini, $fin]); $cobros = (int)$st->fetchColumn();
 
+$sinCobrar = (int)$db->query("SELECT COUNT(*) FROM consultas_clinicas WHERE estado='Finalizada' AND cobro='Pendiente'")->fetchColumn();
 $q = http_build_query(['desde' => $desde, 'hasta' => $hasta]);
 $atajos = [
     'Últimos 30 días' => [date('Y-m-d', strtotime($hoy . ' -29 days')), $hoy],
@@ -134,5 +135,6 @@ foreach ($meses as $ym => $m): ?><tr><td><?= h(lux_rep_mes($ym)) ?></td><td><b><
 <?php if (!$porPago): ?><div class="empty-state">No hay cobros registrados en este período.</div>
 <?php else: $f = []; foreach ($porPago as $p) $f[] = [$p['mp'], (float)$p['t'], money($p['t'])]; echo lux_rep_barras($f); endif; ?></div>
 </div>
-<p class="hc-aviso-conf">Los ingresos son los cobros registrados en el consultorio. Los turnos se cuentan por la fecha del turno y las consultas por la fecha en que se iniciaron; solo cuentan las finalizadas. Pacientes nuevos = fichas creadas en el período.</p>
+<?php if ($sinCobrar): ?><div class="venta-aviso">Hay <?= $sinCobrar ?> consulta(s) finalizada(s) sin cobrar: todavía no figuran en los ingresos. <a class="btn-link" href="lux_registrar_venta.php">Ir a cobrar →</a></div><?php endif; ?>
+<p class="hc-aviso-conf">Los ingresos son los cobros registrados en el consultorio (incluidas las consultas cobradas). Los turnos se cuentan por la fecha del turno y las consultas por la fecha en que se iniciaron; solo cuentan las finalizadas. Pacientes nuevos = fichas creadas en el período.</p>
 <?php lux_footer();

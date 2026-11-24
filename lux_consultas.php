@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     lux_hc_registrar_acceso($db, $cons['usuario_id'], $u['id'], 'consulta_finalizada');
                 }
                 $db->commit();
-                flash($fin ? 'Consulta finalizada y guardada en la historia clínica.' . ($turno ? ' El turno quedó marcado como atendido.' : '') : 'Borrador guardado.');
+                flash($fin ? 'Consulta finalizada y guardada en la historia clínica.' . ($turno ? ' El turno quedó marcado como atendido.' : '') . ' Quedó pendiente de cobro en recepción.' : 'Borrador guardado.');
                 lux_redirect($fin ? 'lux_consultas.php' : 'lux_consultas.php?consulta=' . $cid);
             }
         }

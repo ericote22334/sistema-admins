@@ -46,6 +46,7 @@ else {
     if ($versionInstalada < 16) lux_migrar_16($db);
     if ($versionInstalada < 17) lux_migrar_17($db);
     if ($versionInstalada < 18) lux_migrar_18($db);
+    if ($versionInstalada < 19) lux_migrar_19($db);
 }
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -663,6 +664,24 @@ SQL
 }
 // Número de receta que se imprime (R-000123)
 function lux_receta_codigo($id) { return 'R-' . str_pad((string)(int)$id, 6, '0', STR_PAD_LEFT); }
+
+// Migración v19: cobro de las consultas. Al finalizar una consulta queda "Pendiente" de cobro; recepción la cobra (se crea la venta) o la marca "Sin cargo".
+function lux_migrar_19($db) {
+    $col = function ($tabla, $c) use ($db) {
+        return (int)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='$tabla' AND column_name='$c'")->fetchColumn();
+    };
+    if (!$col('consultas_clinicas', 'cobro')) {
+        $db->exec("ALTER TABLE consultas_clinicas ADD COLUMN cobro VARCHAR(20) NOT NULL DEFAULT 'Pendiente' AFTER finalizada");
+        // las consultas finalizadas antes de este control no entran en la lista de cobros pendientes
+        $db->exec("UPDATE consultas_clinicas SET cobro='No aplica' WHERE estado='Finalizada'");
+    }
+    if (!$col('ventas', 'consulta_id')) {
+        $db->exec('ALTER TABLE ventas ADD COLUMN consulta_id INT UNSIGNED NULL');
+        $db->exec('ALTER TABLE ventas ADD UNIQUE INDEX uq_ventas_consulta (consulta_id)');
+        $db->exec('ALTER TABLE ventas ADD CONSTRAINT fk_ventas_consulta FOREIGN KEY (consulta_id) REFERENCES consultas_clinicas(id) ON DELETE SET NULL');
+    }
+    $db->exec('INSERT INTO lux_schema_version (version) VALUES (19)');
+}
 
 // Historias clínicas: solo las leen y cargan los médicos activos del consultorio (ni el administrador ni el resto del personal).
 // Devuelve la fila del médico (id, usuario_id, nombre) o null si el usuario no está autorizado.

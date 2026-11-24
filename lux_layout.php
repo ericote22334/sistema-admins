@@ -89,6 +89,8 @@ function lux_alertas($db, $nid) {
             [$nid, date('Y-m-d 00:00:00'), date('Y-m-d 00:00:00', strtotime('+1 day'))]);
         if ($r['vencidos']) $r['items'][] = ['rojo', $r['vencidos'] . ($r['vencidos'] == 1 ? ' turno sin atender' : ' turnos sin atender'), 'La fecha ya pasó y siguen pendientes'];
         if ($r['hoy']) $r['items'][] = ['amarillo', $r['hoy'] . ($r['hoy'] == 1 ? ' turno hoy' : ' turnos hoy'), 'Programados para el día de hoy'];
+        $porCobrar = $q("SELECT COUNT(*) FROM consultas_clinicas WHERE estado='Finalizada' AND cobro='Pendiente'");
+        if ($porCobrar) $r['items'][] = ['rojo', $porCobrar . ($porCobrar == 1 ? ' consulta por cobrar' : ' consultas por cobrar'), 'Finalizadas y todavía sin cobro registrado'];
         if ($r['pendientes']) $r['items'][] = ['caja', $r['pendientes'] . ($r['pendientes'] == 1 ? ' turno pendiente' : ' turnos pendientes'), 'Esperando atención'];
         return $r;
     }
