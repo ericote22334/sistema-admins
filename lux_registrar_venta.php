@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare("UPDATE venta_carritos SET estado='Cobrado',ticket_id=? WHERE id=? AND negocio_id=? AND estado='Abierto'")
                        ->execute([$ticketId, $carritoId, $nid]);
                     $db->commit();
-                    flash("Carrito #$carritoId cobrado. Venta #$ticketId registrada — " . count($items) . ' productos, total ' . money($totalVenta) . " ($pago).");
+                    lux_redirect('lux_ticket_venta.php?id=' . $ticketId);
                 }
             } catch (Throwable $e) {
                 if ($db->inTransaction()) $db->rollBack();
@@ -212,21 +212,56 @@ if ($farmacia): ?>
 <?php elseif (!$checkoutLines): ?>
 <div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= (int)$carritoId ?>">Volver al carrito</a></div>
 <?php else: ?>
-<div class="pedidos-tabla"><table><thead><tr><th>Producto</th><th>Precio unitario</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>
-<?php foreach ($checkoutLines as $linea): ?><tr><td><?= h($linea['producto']['nombre']) ?></td><td><?= money($linea['producto']['precio']) ?></td><td><?= (int)$linea['cantidad'] ?></td><td><?= money($linea['subtotal']) ?></td></tr><?php endforeach; ?>
-</tbody></table></div>
 <?php if ($errorCarrito !== ''): ?>
 <div class="venta-aviso"><?= h($errorCarrito) ?> <a href="lux_carrito.php?carrito=<?= (int)$carritoId ?>">Volver al carrito</a></div>
 <?php elseif (!$puede): ?>
 <div class="venta-aviso">Tu puesto puede revisar este carrito, pero no registrar el cobro.</div>
+<div class="pedidos-tabla"><table><thead><tr><th>Producto</th><th>Precio unitario</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>
+<?php foreach ($checkoutLines as $linea): ?><tr><td><?= h($linea['producto']['nombre']) ?></td><td><?= money($linea['producto']['precio']) ?></td><td><?= (int)$linea['cantidad'] ?></td><td><?= money($linea['subtotal']) ?></td></tr><?php endforeach; ?>
+</tbody></table></div>
 <?php else: ?>
 <form method="post" class="venta-form farmacia-cobro" autocomplete="off"><?= csrf_field() ?>
 <input type="hidden" name="carrito_id" value="<?= (int)$carritoId ?>">
-<div class="field"><label>Medio de pago</label><select name="pago" required><?php foreach ($pagos as $pg): ?><option><?= h($pg) ?></option><?php endforeach; ?></select></div>
-<div class="field"><label>Cliente (opcional)</label><input type="text" name="cliente" maxlength="120" placeholder="Nombre y apellido"></div>
-<div class="field"><label>Receta / obra social (opcional)</label><input type="text" name="extra" maxlength="100" placeholder="N° de receta u obra social"></div>
-<div class="venta-resumen"><span><?= count($checkoutLines) ?> productos</span><span>Total a cobrar: <b><?= money($totalCarrito) ?></b></span></div>
-<div><button class="btn-small" type="submit">Cobrar y registrar venta</button></div></form>
+<div class="field"><label for="farmacia-ticket-pago">Medio de pago</label><select name="pago" id="farmacia-ticket-pago" required><?php foreach ($pagos as $pg): ?><option><?= h($pg) ?></option><?php endforeach; ?></select></div>
+<div class="field"><label for="farmacia-ticket-cliente">Cliente (opcional)</label><input type="text" name="cliente" id="farmacia-ticket-cliente" maxlength="120" placeholder="Nombre y apellido"></div>
+<div class="field"><label for="farmacia-ticket-extra">Receta / obra social (opcional)</label><input type="text" name="extra" id="farmacia-ticket-extra" maxlength="100" placeholder="N° de receta u obra social"></div>
+<section class="farmacia-ticket-preview" aria-label="Vista previa del ticket">
+<header class="farmacia-ticket-cab"><div><h3><?= h($neg ?: 'Farmacia Lux') ?></h3><span>Grupo Lux</span></div><b>VISTA PREVIA<br><small>Se asignará el número al confirmar</small></b></header>
+<div class="farmacia-ticket-datos">
+<div><span>Fecha</span><b><?= h(date('d/m/Y H:i')) ?></b></div>
+<div><span>Atendió</span><b><?= h($u['nombre']) ?></b></div>
+<div><span>Cliente</span><b id="farmacia-preview-cliente">Consumidor final</b></div>
+<div><span>Forma de pago</span><b id="farmacia-preview-pago"><?= h($pagos[0]) ?></b></div>
+</div>
+<table><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">P. unit.</th><th class="num">Subtotal</th></tr></thead><tbody>
+<?php foreach ($checkoutLines as $linea): ?><tr><td><?= h($linea['producto']['nombre']) ?></td><td class="num"><?= (int)$linea['cantidad'] ?></td><td class="num"><?= money($linea['producto']['precio']) ?></td><td class="num"><?= money($linea['subtotal']) ?></td></tr><?php endforeach; ?>
+</tbody></table>
+<div class="farmacia-ticket-total"><span>TOTAL</span><b><?= money($totalCarrito) ?></b></div>
+<div class="farmacia-ticket-extra" id="farmacia-preview-extra" hidden></div>
+</section>
+<div class="farmacia-cobro-confirmar"><div class="venta-resumen"><span><?= count($checkoutLines) ?> productos</span><span>Total a cobrar: <b><?= money($totalCarrito) ?></b></span></div>
+<button class="btn-small" type="submit">Confirmar cobro y registrar venta</button></div>
+</form>
+<script>
+(function () {
+    var cliente = document.getElementById('farmacia-ticket-cliente');
+    var pago = document.getElementById('farmacia-ticket-pago');
+    var extra = document.getElementById('farmacia-ticket-extra');
+    var previewCliente = document.getElementById('farmacia-preview-cliente');
+    var previewPago = document.getElementById('farmacia-preview-pago');
+    var previewExtra = document.getElementById('farmacia-preview-extra');
+    function actualizarVista() {
+        previewCliente.textContent = cliente.value.trim() || 'Consumidor final';
+        previewPago.textContent = pago.value;
+        var detalle = extra.value.trim();
+        previewExtra.textContent = detalle ? 'Receta / obra social: ' + detalle : '';
+        previewExtra.hidden = !detalle;
+    }
+    cliente.addEventListener('input', actualizarVista);
+    pago.addEventListener('change', actualizarVista);
+    extra.addEventListener('input', actualizarVista);
+})();
+</script>
 <?php endif; ?>
 <?php endif; ?>
 <?php endif; ?>
@@ -297,7 +332,7 @@ if ($farmacia): ?>
 <div class="section-title"><h2><?= $clinica ? 'Últimos cobros registrados' : 'Últimas ventas registradas' ?></h2><?php if (!$clinica): ?><a class="btn-link" href="lux_historial_ventas.php">Ver historial completo →</a><?php endif; ?></div>
 <?php if (!$hist): ?><div class="empty-state">Todavía no hay ventas registradas.</div><?php else: ?>
 <div class="pedidos-tabla"><table><thead><tr><th>N°</th><?php if ($farmacia): ?><th>Venta</th><?php endif; ?><th>Fecha</th><th><?= $clinica ? 'Prestación' : 'Producto' ?></th><th>Cant.</th><th>Total</th><th>Pago</th><th><?= $clinica ? 'Paciente' : 'Cliente' ?></th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
-<?php foreach ($hist as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($farmacia): ?><td><?= $x['ticket_id'] ? '#' . (int)$x['ticket_id'] : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
+<?php foreach ($hist as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($farmacia): ?><td><?= $x['ticket_id'] ? '<a class="btn-link" href="lux_ticket_venta.php?id=' . (int)$x['ticket_id'] . '">#' . (int)$x['ticket_id'] . '</a>' : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
 <td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td><td><?= h($x['detalle'] ?? '—') ?></td></tr><?php endforeach; ?>
 </tbody></table></div><?php endif; ?>
 <?php lux_footer();

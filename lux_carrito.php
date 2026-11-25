@@ -82,6 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lock->execute([$idCarritoPost, $nid]);
         if (!$lock->fetchColumn()) {
             $error = 'Ese carrito ya se cobró o fue eliminado.';
+        } elseif ($accion === 'renombrar') {
+            $nombreRaw = $_POST['nombre'] ?? '';
+            $nombre = is_scalar($nombreRaw) ? trim((string)$nombreRaw) : '';
+            if (!is_scalar($nombreRaw) || $nombre === '' || mb_strlen($nombre) > 80) {
+                $error = 'El nombre del carrito debe tener entre 1 y 80 caracteres.';
+            } else {
+                $db->prepare("UPDATE venta_carritos SET nombre=? WHERE id=? AND negocio_id=? AND estado='Abierto'")
+                   ->execute([$nombre, $idCarritoPost, $nid]);
+                $mensaje = "Nombre del carrito #$idCarritoPost actualizado.";
+            }
         } elseif ($accion === 'eliminar_carrito') {
             $db->prepare("DELETE FROM venta_carritos WHERE id=? AND negocio_id=? AND estado='Abierto'")->execute([$idCarritoPost, $nid]);
             $mensaje = "Carrito #$idCarritoPost eliminado.";
@@ -190,7 +200,7 @@ lux_header('Carritos de farmacia', 'Los carritos abiertos y sus números son com
 <div class="farmacia-cabecera-carritos">
 <div><h2 class="farmacia-titulo">Carritos abiertos</h2><p>El número de carrito es común para todos los usuarios de la farmacia.</p></div>
 <?php if ($puede): ?><form method="post" class="farmacia-nuevo-carrito"><?= csrf_field() ?><input type="hidden" name="accion" value="nuevo">
-<input type="text" name="nombre" maxlength="80" placeholder="Nombre o referencia (opcional)" aria-label="Nombre o referencia del carrito">
+<label for="nuevo-carrito-nombre">Nombre del carrito</label><input id="nuevo-carrito-nombre" type="text" name="nombre" maxlength="80" placeholder="Nombre o referencia (opcional)">
 <button type="submit" class="btn-small">+ Nuevo carrito</button></form><?php endif; ?></div>
 
 <?php if (!$carritos): ?><div class="empty-state">No hay carritos abiertos. <?php if ($puede): ?>Creá uno para empezar.<?php endif; ?></div>
@@ -201,6 +211,9 @@ lux_header('Carritos de farmacia', 'Los carritos abiertos y sus números son com
 <div><b>Carrito #<?= (int)$abierto['id'] ?> · <?= h($abierto['nombre']) ?></b><span><?= (int)$abierto['productos'] ?> <?= (int)$abierto['productos'] === 1 ? 'producto' : 'productos' ?> · <?= money($abierto['total']) ?><?= $seleccionado ? ' · seleccionado' : '' ?></span></div>
 <div class="farmacia-carrito-botones">
 <?php if (!$seleccionado): ?><a class="btn-detalle" href="lux_carrito.php?carrito=<?= (int)$abierto['id'] ?>">Abrir carrito</a><?php endif; ?>
+<?php if ($puede): ?><details class="farmacia-renombrar"><summary>Cambiar nombre</summary><form method="post"><?= csrf_field() ?><input type="hidden" name="accion" value="renombrar"><input type="hidden" name="carrito_id" value="<?= (int)$abierto['id'] ?>">
+<label for="nombre-carrito-<?= (int)$abierto['id'] ?>">Nombre</label><input id="nombre-carrito-<?= (int)$abierto['id'] ?>" type="text" name="nombre" value="<?= h($abierto['nombre']) ?>" maxlength="80" required>
+<button class="btn-small" type="submit">Guardar</button></form></details><?php endif; ?>
 <?php if ($puede): ?><form method="post" class="inline" onsubmit="return confirm('¿Eliminar el carrito #<?= (int)$abierto['id'] ?> y sus productos cargados?')"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar_carrito"><input type="hidden" name="carrito_id" value="<?= (int)$abierto['id'] ?>"><button class="btn-del" type="submit">Eliminar</button></form><?php endif; ?></div></div>
 <?php endforeach; ?>
 </div>

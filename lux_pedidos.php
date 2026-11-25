@@ -38,16 +38,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 else {
                     $detalle = 'Pedido web #' . (int)$pedido['id'] . ' · ' . ($pedido['entrega'] ?: 'Entrega sin especificar');
                     if ($nid == 2 && isset($pedido['numero_obra_social']) && $pedido['numero_obra_social'] !== '') $detalle .= ' · Obra social: ' . $pedido['numero_obra_social'];
-                    $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cliente_id,cantidad,total,fecha,medio_pago,cliente_nombre,detalle)
-                        VALUES(?,?,?,?,?,?,?,?,?,?)')->execute([
+                    $fechaVenta = date('Y-m-d H:i:s');
+                    $medioPago = $pedido['medio_pago'];
+                    $ticketId = null;
+                    if ($nid == 2) {
+                        if (!$medioPago) $medioPago = 'Sin especificar';
+                        $db->prepare('INSERT INTO venta_tickets(negocio_id,usuario_id,fecha,medio_pago,cliente_nombre,detalle,total) VALUES(?,?,?,?,?,?,?)')
+                           ->execute([
+                               $nid, (int)$u['id'], $fechaVenta, $medioPago, $pedido['cliente'], $detalle,
+                               (float)$pedido['precio'] * (int)$pedido['cantidad'],
+                           ]);
+                        $ticketId = (int)$db->lastInsertId();
+                    }
+                    $db->prepare('INSERT INTO ventas(negocio_id,producto_id,usuario_id,cliente_id,cantidad,total,fecha,medio_pago,cliente_nombre,detalle,ticket_id)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?)')->execute([
                         $nid, (int)$pedido['producto_id'], (int)$u['id'], $pedido['cliente_id'],
                         (int)$pedido['cantidad'], (float)$pedido['precio'] * (int)$pedido['cantidad'],
-                        date('Y-m-d H:i:s'), $pedido['medio_pago'], $pedido['cliente'], $detalle,
+                        $fechaVenta, $medioPago, $pedido['cliente'], $detalle, $ticketId,
                     ]);
                     $ventaId = (int)$db->lastInsertId();
                     $up = $db->prepare("UPDATE pedidos SET estado='Entregado',venta_id=? WHERE id=? AND negocio_id=? AND estado<>'Entregado' AND venta_id IS NULL");
                     $up->execute([$ventaId, $pedidoId, $nid]);
                     if ($up->rowCount() !== 1) $err = 'No se pudo vincular la venta al pedido.';
+                    elseif ($nid == 2) $msg = 'Pedido #' . $pedidoId . ' entregado; ticket #' . $ticketId . ' generado y venta #' . $ventaId . ' registrada en el historial.';
                     else $msg = 'Pedido #' . $pedidoId . ' entregado y venta #' . $ventaId . ' registrada en el historial.';
                 }
             } else {
@@ -73,8 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $q = trim($_GET['q'] ?? '');
 $f = in_array($_GET['estado'] ?? '', $estados, true) ? $_GET['estado'] : '';
-$sql = "SELECT p.*, pr.nombre producto, pr.precio, COALESCE(u.nombre,'Mostrador') cliente
+$sql = "SELECT p.*, pr.nombre producto, pr.precio, COALESCE(u.nombre,'Mostrador') cliente, v.ticket_id
         FROM pedidos p JOIN productos pr ON pr.id=p.producto_id LEFT JOIN usuarios u ON u.id=p.cliente_id
+        LEFT JOIN ventas v ON v.id=p.venta_id
         WHERE p.negocio_id=?";
 $par = [$nid];
 if ($f !== '') { $sql .= ' AND p.estado=?'; $par[] = $f; }
@@ -87,8 +101,9 @@ if ($q !== '') {
 $st = $db->prepare($sql . ' ORDER BY p.fecha DESC, p.id DESC'); $st->execute($par); $lista = $st->fetchAll();
 $det = null;
 if (!empty($_GET['ver'])) {
-    $sd = $db->prepare("SELECT p.*, pr.nombre producto, pr.precio, COALESCE(u.nombre,'Mostrador') cliente
+    $sd = $db->prepare("SELECT p.*, pr.nombre producto, pr.precio, COALESCE(u.nombre,'Mostrador') cliente, v.ticket_id
         FROM pedidos p JOIN productos pr ON pr.id=p.producto_id LEFT JOIN usuarios u ON u.id=p.cliente_id
+        LEFT JOIN ventas v ON v.id=p.venta_id
         WHERE p.id=? AND p.negocio_id=?");
     $sd->execute([(int)$_GET['ver'], $nid]); $det = $sd->fetch() ?: null;
 }
@@ -108,6 +123,7 @@ lux_header('Pedidos', 'Seguimiento y cambio de estado de los pedidos recibidos.'
 <div><dt>Precio unitario</dt><dd><?= money($det['precio']) ?></dd></div>
 <div><dt>Total</dt><dd><?= money($det['cantidad'] * $det['precio']) ?></dd></div>
 <div><dt>Estado</dt><dd><?= h($det['estado']) ?></dd></div></dl></div>
+<?php if ($nid == 2 && !empty($det['ticket_id'])): ?><p><a class="btn-detalle" href="lux_ticket_venta.php?id=<?= (int)$det['ticket_id'] ?>">Ver ticket #<?= (int)$det['ticket_id'] ?></a></p><?php endif; ?>
 <?php endif; ?>
 <form class="pedidos-filtros" method="get">
 <input type="text" name="q" value="<?= h($q) ?>" placeholder="Buscar por cliente o número...">
@@ -127,6 +143,7 @@ lux_header('Pedidos', 'Seguimiento y cambio de estado de los pedidos recibidos.'
 <select name="estado" class="est <?= h($clase[$p['estado']] ?? 'pendiente') ?>" data-original="<?= h($p['estado']) ?>" onchange="if (this.value === 'Entregado' && !confirm(<?= h(json_encode('¿Estás seguro de marcar el pedido #' . (int)$p['id'] . ' como entregado? Se registrará la venta y se descontará el stock.')) ?>)) { this.value = this.dataset.original; return; } this.form.submit()">
 <?php foreach ($ops as $e): ?><option value="<?= h($e) ?>" <?= $e === $p['estado'] ? 'selected' : '' ?>><?= h($e) ?></option><?php endforeach; ?></select></form></td>
 <?php endif; ?>
-<td><a class="btn-detalle" href="lux_pedidos.php?<?= h(http_build_query($keep + ['ver' => $p['id']])) ?>">Ver detalle</a></td></tr>
+<td><a class="btn-detalle" href="lux_pedidos.php?<?= h(http_build_query($keep + ['ver' => $p['id']])) ?>">Ver detalle</a>
+<?php if ($nid == 2 && !empty($p['ticket_id'])): ?> <a class="btn-detalle" href="lux_ticket_venta.php?id=<?= (int)$p['ticket_id'] ?>">Ver ticket</a><?php endif; ?></td></tr>
 <?php endforeach; ?></tbody></table></div><?php endif; ?>
 <?php lux_footer();

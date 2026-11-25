@@ -82,8 +82,8 @@ lux_header('Historial de ventas', ($neg ?: '—') . ' — buscá y filtrá todo 
 
 <?php if (!$lista): ?><div class="empty-state"><?= $hayFiltro ? 'No hay ventas que coincidan con la búsqueda.' : 'Todavía no hay ventas registradas.' ?></div>
 <?php else: ?>
-<div class="pedidos-tabla"><table><thead><tr><th>N°</th><?php if ($nid == 2): ?><th>Venta</th><?php endif; ?><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Cliente</th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
-<?php foreach ($lista as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($nid == 2): ?><td><?= $x['ticket_id'] ? '#' . (int)$x['ticket_id'] : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
+<div class="pedidos-tabla"><table><thead><tr><th>N°</th><?php if ($nid == 2): ?><th>Ticket</th><?php endif; ?><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Cliente</th><th>Registró</th><th>Detalle</th></tr></thead><tbody>
+<?php foreach ($lista as $x): ?><tr><td><b>#<?= (int)$x['id'] ?></b></td><?php if ($nid == 2): ?><td><?= $x['ticket_id'] ? '<a class="btn-detalle" href="lux_ticket_venta.php?id=' . (int)$x['ticket_id'] . '">Ver ticket #' . (int)$x['ticket_id'] . '</a>' : '—' ?></td><?php endif; ?><td><?= h(date('d/m/Y H:i', strtotime($x['fecha']))) ?></td><td><?= h($x['producto']) ?></td><td><?= (int)$x['cantidad'] ?></td><td><?= money($x['total']) ?></td>
 <td><?= h($x['medio_pago'] ?? '—') ?></td><td><?= h($x['cliente_nombre'] ?? '—') ?></td><td><?= h($x['vendedor']) ?></td><td><?= h($x['detalle'] ?? '—') ?></td></tr><?php endforeach; ?>
 </tbody></table></div>
 <?php if ($paginas > 1): ?>
