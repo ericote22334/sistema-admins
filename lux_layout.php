@@ -17,7 +17,12 @@ function lux_nav($rol) {
         'lux_mis_turnos.php' => 'Mis compras y turnos', 'lux_explorar.php' => 'Explorar negocios',
         'lux_mis_datos.php' => 'Mis datos de paciente', 'lux_mis_recetas.php' => 'Mis recetas',
         'lux_perfil.php' => 'Mi perfil'];
-    $n = ['lux_ventas.php' => 'Mi negocio', 'lux_inventario.php' => 'Inventario'];
+    $n = [];
+    $esMedico = lux_es_medico(lux_user()) || lux_medico_autorizado($db, lux_user());
+    if (!$esMedico) {
+        $n['lux_ventas.php'] = 'Mi negocio';
+        $n['lux_inventario.php'] = 'Inventario';
+    }
     if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_calendario.php'] = 'Calendario de turnos';
     if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_pacientes.php'] = 'Pacientes';
     if ((int)(lux_user()['negocio_id'] ?? 0) === 4 && lux_puede_pacientes(lux_user())) $n['lux_medicos.php'] = 'Médicos';

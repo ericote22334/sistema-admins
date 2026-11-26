@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/lux_layout.php';
 $u = lux_require(['superadmin', 'admin', 'empleado']);
+if (lux_es_medico($u) || lux_medico_autorizado($db, $u)) {
+    flash('El inventario no está disponible para médicos.', true);
+    lux_redirect(lux_medico_autorizado($db, $u) ? 'lux_consultas.php' : 'lux_calendario.php');
+}
 $nid = lux_negocio_id($u);
 if (!$nid) lux_redirect('lux_negocios.php');
 $puedeBorrar = in_array($u['rol'], ['superadmin', 'admin']); // el empleado puede editar, solo el admin elimina

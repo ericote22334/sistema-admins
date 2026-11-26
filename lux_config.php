@@ -224,6 +224,11 @@ function lux_puede_vender($u) {
     ];
     return in_array($p, $venden[(int)($u['negocio_id'] ?? 0)] ?? [], true);
 }
+// Identifica al personal cuyo puesto es médico.
+function lux_es_medico($u) {
+    return ($u['puesto'] ?? '') === 'Médico';
+}
+
 // Quién puede modificar turnos en el calendario del Consultorio (los médicos solo los propios; lo resuelve el calendario)
 function lux_puede_agenda($u) {
     if (in_array($u['rol'] ?? '', ['superadmin', 'admin'], true)) return true;
