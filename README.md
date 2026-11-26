@@ -15,7 +15,7 @@ El backend usa MySQL/MariaDB mediante PDO y conecta por defecto a `127.0.0.1:330
 
 Para importar el archivo manualmente desde phpMyAdmin, creá y seleccioná una base llamada `grupolux`, luego importá `data/grupo_lux.sql`. La cuenta de MySQL debe poder crear tablas e insertar registros; para la instalación automática también debe poder crear la base de datos.
 
-La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves foráneas e índices. Farmacia permite mantener carritos abiertos compartidos entre todos los roles habilitados del negocio, con números globales y referencia opcional; cada cobro toma un carrito por vez. Cada cobro se agrupa en un ticket, guarda cliente, pago y detalle, y descuenta el stock de todos sus productos juntos. Los pedidos web de Farmacia admiten un número de obra social opcional. Las bases existentes reciben las tablas de tickets y carritos mediante las migraciones de esquema v8 y v9, y el número de obra social mediante v10. El archivo `data/lux.sqlite`, si ya existe de una ejecución anterior, es una base SQLite antigua y ya no la utiliza la aplicación.
+La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves foráneas e índices. Farmacia permite mantener carritos abiertos compartidos entre todos los roles habilitados del negocio, con números globales y referencia opcional; cada cobro toma un carrito por vez. Antes de confirmar, el cobro muestra una vista previa del ticket con sus productos, cantidades, precios, cliente y pago. Cada cobro se agrupa en un ticket, guarda cliente, pago y detalle, y descuenta el stock de todos sus productos juntos. El ticket se puede consultar e imprimir al terminar el cobro y desde cada línea del historial de ventas. Los pedidos web de Farmacia admiten un número de obra social opcional. Las bases existentes reciben las tablas de tickets y carritos mediante las migraciones de esquema v8 y v9, y el número de obra social mediante v10. El archivo `data/lux.sqlite`, si ya existe de una ejecución anterior, es una base SQLite antigua y ya no la utiliza la aplicación.
 
 ## Usuarios demo (clave `lux2026`)
 - Super Admin: admin@grupolux.com
@@ -34,12 +34,13 @@ La base relaciona negocios, usuarios, productos, ventas y turnos mediante claves
 | lux_negocios.php | Super Admin: estado de los 4 negocios |
 | lux_usuarios.php | Super Admin: gestionar usuarios; Administrador: agregar empleados a su negocio |
 | lux_ventas.php | Empleado/Admin: resumen del negocio y acceso al registro de ventas |
-| lux_carrito.php | Farmacia: crear y administrar carritos numerados, compartidos por el personal |
-| lux_registrar_venta.php | Selecciona un carrito de Farmacia, muestra sus productos, captura pago y registra ese ticket; los demás negocios mantienen su formulario actual |
+| lux_carrito.php | Farmacia: crear carritos numerados con nombre y cambiar el nombre de los que sigan abiertos |
+| lux_registrar_venta.php | Selecciona un carrito de Farmacia, permite previsualizar el ticket antes de confirmar el cobro y registra la venta; los demás negocios mantienen su formulario actual |
+| lux_ticket_venta.php | Farmacia: consultar e imprimir un ticket de venta registrado |
 | lux_inventario.php | Empleado/Admin: buscar, alta de productos y reposición |
 | lux_mis_turnos.php | Cliente: compras, seguimiento de pedidos, reservar y cancelar turnos |
 | lux_explorar.php | Cliente: catálogo y pedidos de Papelería, Farmacia y ElectroLux; Farmacia admite número de obra social opcional |
-| lux_pedidos.php | Empleado/Admin (comercios): buscar pedidos, revisar pago/entrega y confirmar; al entregar registra la venta y descuenta stock |
+| lux_pedidos.php | Empleado/Admin (comercios): buscar pedidos, revisar pago/entrega y confirmar; al entregar registra la venta y descuenta stock; Farmacia también genera y vincula el ticket |
 | lux_perfil.php | Todos: editar nombre y cambiar contraseña |
 
 ## Alertas (según el sistema)

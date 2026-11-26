@@ -412,6 +412,7 @@ a.btn-small{display:inline-block;text-decoration:none;}
 .farmacia-cabecera-carritos{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px;}
 .farmacia-cabecera-carritos p{margin:4px 0 0;color:var(--text-muted);font-size:13px;}
 .farmacia-nuevo-carrito{display:flex;gap:8px;align-items:center;}
+.farmacia-nuevo-carrito label,.farmacia-renombrar label{font-size:12px;color:var(--text-muted);white-space:nowrap;}
 .farmacia-nuevo-carrito input{min-width:220px;padding:10px 12px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;}
 .farmacia-lista-carritos{display:grid;gap:10px;margin-bottom:22px;}
 .farmacia-carrito-resumen{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
@@ -419,10 +420,33 @@ a.btn-small{display:inline-block;text-decoration:none;}
 .farmacia-carrito-resumen>div:first-child{display:flex;flex-direction:column;gap:4px;}
 .farmacia-carrito-resumen span{font-size:12.5px;color:var(--text-muted);}
 .farmacia-carrito-botones{display:flex;gap:8px;align-items:center;}
+.farmacia-renombrar{position:relative;}
+.farmacia-renombrar summary{list-style:none;border:1px solid var(--border-strong);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--accent);background:var(--surface);cursor:pointer;white-space:nowrap;}
+.farmacia-renombrar summary::-webkit-details-marker{display:none;}
+.farmacia-renombrar[open] form{position:absolute;z-index:2;right:0;top:calc(100% + 6px);display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:8px;align-items:center;width:min(360px,calc(100vw - 32px));padding:12px;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);}
+.farmacia-renombrar input{min-width:0;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;}
+.farmacia-renombrar form label{grid-column:1/-1;}
 .farmacia-acciones{padding-top:14px;}
 .farmacia-acciones b{font-size:18px;}
 .farmacia-pie{margin-top:16px;}
 .farmacia-cobro{margin-top:18px;}
+.farmacia-ticket-preview{grid-column:1/-1;width:100%;max-width:620px;justify-self:center;box-sizing:border-box;padding:22px;background:var(--surface);border:1px dashed var(--border-strong);border-radius:12px;color:var(--text);}
+.farmacia-ticket-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px dashed var(--border-strong);}
+.farmacia-ticket-cab h3{margin:0;font:500 20px 'Fraunces',serif;}
+.farmacia-ticket-cab span,.farmacia-ticket-cab small{font-size:11px;color:var(--text-muted);}
+.farmacia-ticket-cab>b{text-align:right;font-size:11px;letter-spacing:.04em;}
+.farmacia-ticket-datos{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:14px;font-size:12px;}
+.farmacia-ticket-datos>div{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.farmacia-ticket-datos span{color:var(--text-muted);}
+.farmacia-ticket-preview table{width:100%;border-collapse:collapse;font-size:12px;}
+.farmacia-ticket-preview th{text-align:left;font-size:10px;text-transform:uppercase;padding:7px 4px;border-bottom:1px solid var(--border-strong);}
+.farmacia-ticket-preview td{padding:8px 4px;border-bottom:1px dotted var(--border);}
+.farmacia-ticket-preview .num{text-align:right;white-space:nowrap;}
+.farmacia-ticket-total{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-strong);font-size:17px;font-weight:700;}
+.farmacia-ticket-extra{margin-top:10px;font-size:12px;}
+.farmacia-cobro-confirmar{grid-column:1/-1;display:grid;gap:14px;}
+.farmacia-cobro-confirmar .venta-resumen{width:100%;box-sizing:border-box;}
+.farmacia-cobro-confirmar button{justify-self:start;}
 .carrito-cantidad{width:88px;padding:7px!important;}
 .carrito-alerta{color:#A6402A;}
 
@@ -434,6 +458,10 @@ a.btn-small{display:inline-block;text-decoration:none;}
   .farmacia-cabecera-carritos,.farmacia-nuevo-carrito,.farmacia-carrito-resumen{align-items:stretch;flex-direction:column;}
   .farmacia-nuevo-carrito input{min-width:0;}
   .farmacia-carrito-botones{justify-content:flex-start;}
+  .farmacia-renombrar[open] form{left:0;right:auto;}
+  .farmacia-ticket-preview{padding:16px 12px;overflow-x:auto;}
+  .farmacia-ticket-datos{grid-template-columns:1fr;}
+  .farmacia-ticket-preview table{font-size:10px;}
 }
 
 html[data-theme="dark"]{
